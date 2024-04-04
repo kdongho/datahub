@@ -1,4 +1,4 @@
-import { SchemaField } from '../../../types.generated';
+import { EntityType, SchemaField } from '../../../types.generated';
 import {
     COLUMN_HEIGHT,
     CURVE_PADDING,
@@ -24,6 +24,29 @@ const UPSTREAM_X_MODIFIER = -1;
 const UPSTREAM_DIRECTION_SHIFT = -20;
 const COLUMN_HEIGHT_BUFFER = 1.2;
 
+function getParentRelationship(direction: Direction, parent: VizNode | null, node: NodeData) {
+    const directionRelationships =
+        direction === Direction.Downstream
+            ? parent?.data?.downstreamRelationships
+            : parent?.data?.upstreamRelationships;
+    return directionRelationships?.find((r) => r?.entity?.urn === node?.urn);
+}
+
+// this utility function is to help make sure layouts that contain many references to the same URN don't struggle laying out that URN.
+function firstAppearanceIndices(arr) {
+    const seen = new Set(); // To track which strings have been seen
+    const result = [] as number[];
+
+    for (let i = 0; i < arr.length; i++) {
+        if (!seen.has(arr[i])) {
+            seen.add(arr[i]); // Add the string to the set
+            result.push(i); // Save the index
+        }
+    }
+
+    return result;
+}
+
 function layoutNodesForOneDirection(
     data: NodeData,
     direction: Direction,
@@ -46,12 +69,10 @@ function layoutNodesForOneDirection(
     while (nodesInCurrentLayer.length > 0) {
         // if we've already added a node to the viz higher up dont add it again
         const urnsToAddInCurrentLayer = Array.from(new Set(nodesInCurrentLayer.map(({ node }) => node.urn || '')));
-        const nodesToAddInCurrentLayer = urnsToAddInCurrentLayer
-            .filter((urn, pos) => urnsToAddInCurrentLayer.indexOf(urn) === pos)
-            .filter((urn) => !nodesByUrn[urn || '']);
+        const positionsToAddInCurrentLayer = firstAppearanceIndices(urnsToAddInCurrentLayer);
 
         const filteredNodesInCurrentLayer = nodesInCurrentLayer
-            .filter(({ node }) => nodesToAddInCurrentLayer.indexOf(node.urn || '') > -1)
+            .filter((_, idx) => positionsToAddInCurrentLayer.indexOf(idx) > -1)
             .filter(({ node }) => node.status?.removed !== true);
 
         const layerSize = filteredNodesInCurrentLayer.length;
@@ -141,9 +162,15 @@ function layoutNodesForOneDirection(
                           { x: vizNodeForNode.x, y: vizNodeForNode.y - (nodeWidth / 2) * xModifier + directionShift },
                       ];
 
+                const relationship = getParentRelationship(direction, parent, node);
+
                 const vizEdgeForPair = {
                     source: parent,
                     target: vizNodeForNode,
+                    createdActor: relationship?.createdActor,
+                    createdOn: relationship?.createdOn,
+                    updatedOn: relationship?.updatedOn,
+                    isManual: relationship?.isManual || false,
                     curve,
                 };
                 edgesToRender.push(vizEdgeForPair);
@@ -189,9 +216,12 @@ function drawColumnEdge({
     visibleColumnsByUrn,
 }: DrawColumnEdgeProps) {
     const targetFieldIndex = targetFields.findIndex((candidate) => candidate.fieldPath === targetField) || 0;
-    const targetFieldY = targetNode?.y || 0 + 1;
+    const targetFieldY = targetNode?.y || 0 + 3;
     let targetFieldX = (targetNode?.x || 0) + 35 + targetTitleHeight;
-    if (!collapsedColumnsNodes[targetNode?.data.urn || 'no-op']) {
+    // if currentNode is a dataJob, draw line to center of data job
+    if (targetNode?.data.type === EntityType.DataJob) {
+        targetFieldX = targetNode?.x || 0;
+    } else if (!collapsedColumnsNodes[targetNode?.data.urn || 'no-op']) {
         if (!visibleColumnsByUrn[targetUrn]?.has(targetField)) {
             targetFieldX =
                 (targetNode?.x || 0) +
@@ -278,7 +308,10 @@ function layoutColumnTree(
 
                 const sourceFieldY = currentNode?.y || 0 + 1;
                 let sourceFieldX = (currentNode?.x || 0) + 30 + sourceTitleHeight;
-                if (!collapsedColumnsNodes[currentNode?.data.urn || 'no-op']) {
+                // if currentNode is a dataJob, draw line from center of data job
+                if (currentNode?.data.type === EntityType.DataJob) {
+                    sourceFieldX = currentNode?.x || 0;
+                } else if (!collapsedColumnsNodes[currentNode?.data.urn || 'no-op']) {
                     if (!visibleColumnsByUrn[entityUrn]?.has(sourceField)) {
                         sourceFieldX =
                             (currentNode?.x || 0) +

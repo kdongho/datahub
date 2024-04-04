@@ -1,4 +1,5 @@
 import json
+import pathlib
 from unittest.mock import patch
 
 from freezegun import freeze_time
@@ -13,19 +14,23 @@ FROZEN_TIME = "2021-11-11 07:00:00"
 JSON_RESPONSE_MAP = {
     "http://localhost:3000/api/session": "session.json",
     "http://localhost:3000/api/user/current": "user.json",
-    "http://localhost:3000/api/dashboard": "dashboard.json",
-    "http://localhost:3000/api/dashboard/1": "dashboard_1.json",
+    "http://localhost:3000/api/collection/": "collections.json",
+    "http://localhost:3000/api/collection/root/items?models=dashboard": "collection_dashboards.json",
+    "http://localhost:3000/api/collection/150/items?models=dashboard": "collection_dashboards.json",
+    "http://localhost:3000/api/dashboard/10": "dashboard_1.json",
     "http://localhost:3000/api/user/1": "user.json",
     "http://localhost:3000/api/card": "card.json",
-    "http://localhost:3000/api/database/2": "database.json",
+    "http://localhost:3000/api/database/1": "bigquery_database.json",
+    "http://localhost:3000/api/database/2": "postgres_database.json",
     "http://localhost:3000/api/card/1": "card_1.json",
     "http://localhost:3000/api/card/2": "card_2.json",
     "http://localhost:3000/api/table/21": "table_21.json",
+    "http://localhost:3000/api/card/3": "card_3.json",
 }
 
-RESPONSE_ERROR_LIST = ["http://localhost:3000/api/dashboard"]
+RESPONSE_ERROR_LIST = ["http://localhost:3000/api/dashboard/public"]
 
-test_resources_dir = None
+test_resources_dir = pathlib.Path(__file__).parent
 
 
 class MockResponse:
@@ -134,9 +139,6 @@ def test_mode_ingest_failure(pytestconfig, tmp_path):
         "datahub.ingestion.source.metabase.requests.delete",
         side_effect=mocked_requests_session_delete,
     ):
-        global test_resources_dir
-        test_resources_dir = pytestconfig.rootpath / "tests/integration/metabase"
-
         pipeline = Pipeline.create(
             {
                 "run_id": "metabase-test",

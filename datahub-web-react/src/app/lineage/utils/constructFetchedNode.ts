@@ -65,6 +65,9 @@ export default function constructFetchedNode(
             schemaMetadata: fetchedNode.schemaMetadata,
             inputFields: fetchedNode.inputFields,
             canEditLineage: fetchedNode.canEditLineage,
+            upstreamRelationships: fetchedNode?.upstreamRelationships || [],
+            downstreamRelationships: fetchedNode?.downstreamRelationships || [],
+            health: fetchedNode?.health,
         };
 
         // eslint-disable-next-line no-param-reassign

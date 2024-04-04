@@ -1,14 +1,15 @@
 import dataclasses
 import json
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple, Union
 
-from datahub.emitter.aspect import ASPECT_MAP, TIMESERIES_ASPECT_MAP
+from datahub.emitter.aspect import ASPECT_MAP, JSON_CONTENT_TYPE
 from datahub.emitter.serialization_helper import post_json_transform, pre_json_transform
 from datahub.metadata.schema_classes import (
     ChangeTypeClass,
     DictWrapper,
     GenericAspectClass,
     KafkaAuditHeaderClass,
+    MetadataChangeLogClass,
     MetadataChangeProposalClass,
     SystemMetadataClass,
     _Aspect,
@@ -20,14 +21,12 @@ if TYPE_CHECKING:
 
 _ENTITY_TYPE_UNSET = "ENTITY_TYPE_UNSET"
 
-_ASPECT_CONTENT_TYPE = "application/json"
-
 
 def _make_generic_aspect(codegen_obj: DictWrapper) -> GenericAspectClass:
     serialized = json.dumps(pre_json_transform(codegen_obj.to_obj()))
     return GenericAspectClass(
         value=serialized.encode(),
-        contentType=_ASPECT_CONTENT_TYPE,
+        contentType=JSON_CONTENT_TYPE,
     )
 
 
@@ -42,7 +41,7 @@ def _try_from_generic_aspect(
         return True, None
     assert aspectName is not None, "aspectName must be set if aspect is set"
 
-    if aspect.contentType != _ASPECT_CONTENT_TYPE:
+    if aspect.contentType != JSON_CONTENT_TYPE:
         return False, None
 
     if aspectName not in ASPECT_MAP:
@@ -101,9 +100,19 @@ class MetadataChangeProposalWrapper:
 
     @classmethod
     def construct_many(
-        cls, entityUrn: str, aspects: List[Optional[_Aspect]]
+        cls, entityUrn: str, aspects: Sequence[Optional[_Aspect]]
     ) -> List["MetadataChangeProposalWrapper"]:
         return [cls(entityUrn=entityUrn, aspect=aspect) for aspect in aspects if aspect]
+
+    def _make_mcp_without_aspects(self) -> MetadataChangeProposalClass:
+        return MetadataChangeProposalClass(
+            entityType=self.entityType,
+            entityUrn=self.entityUrn,
+            changeType=self.changeType,
+            auditHeader=self.auditHeader,
+            aspectName=self.aspectName,
+            systemMetadata=self.systemMetadata,
+        )
 
     def make_mcp(self) -> MetadataChangeProposalClass:
         serializedEntityKeyAspect: Union[None, GenericAspectClass] = None
@@ -114,16 +123,10 @@ class MetadataChangeProposalWrapper:
         if self.aspect is not None:
             serializedAspect = _make_generic_aspect(self.aspect)
 
-        return MetadataChangeProposalClass(
-            entityType=self.entityType,
-            entityUrn=self.entityUrn,
-            entityKeyAspect=serializedEntityKeyAspect,
-            changeType=self.changeType,
-            auditHeader=self.auditHeader,
-            aspectName=self.aspectName,
-            aspect=serializedAspect,
-            systemMetadata=self.systemMetadata,
-        )
+        mcp = self._make_mcp_without_aspects()
+        mcp.entityKeyAspect = serializedEntityKeyAspect
+        mcp.aspect = serializedAspect
+        return mcp
 
     def validate(self) -> bool:
         if self.entityUrn is None and self.entityKeyAspect is None:
@@ -134,7 +137,10 @@ class MetadataChangeProposalWrapper:
             return False
         if self.aspect and not self.aspect.validate():
             return False
-        if not self.make_mcp().validate():
+        if not self._make_mcp_without_aspects().validate():
+            # PERF: Because we've already validated the aspects above, we can skip
+            # re-validating them by using _make_mcp_without_aspects() instead of
+            # make_mcp(). This way, we avoid doing unnecessary JSON serialization.
             return False
         return True
 
@@ -148,7 +154,7 @@ class MetadataChangeProposalWrapper:
             # Undo the double JSON serialization that happens in the MCP aspect.
             if (
                 obj.get("aspect")
-                and obj["aspect"].get("contentType") == _ASPECT_CONTENT_TYPE
+                and obj["aspect"].get("contentType") == JSON_CONTENT_TYPE
             ):
                 obj["aspect"] = {"json": json.loads(obj["aspect"]["value"])}
         return obj
@@ -167,30 +173,63 @@ class MetadataChangeProposalWrapper:
         # routine works.
         if obj.get("aspect") and obj["aspect"].get("json"):
             obj["aspect"] = {
-                "contentType": _ASPECT_CONTENT_TYPE,
+                "contentType": JSON_CONTENT_TYPE,
                 "value": json.dumps(obj["aspect"]["json"]),
             }
 
-        mcp = MetadataChangeProposalClass.from_obj(obj, tuples=tuples)
+        mcpc = MetadataChangeProposalClass.from_obj(obj, tuples=tuples)
 
         # We don't know how to deserialize the entity key aspects yet.
-        if mcp.entityKeyAspect is not None:
-            return mcp
+        if mcpc.entityKeyAspect is not None:
+            return mcpc
 
         # Try to deserialize the aspect.
-        converted, aspect = _try_from_generic_aspect(mcp.aspectName, mcp.aspect)
+        return cls.try_from_mcpc(mcpc) or mcpc
+
+    @classmethod
+    def try_from_mcpc(
+        cls, mcpc: MetadataChangeProposalClass
+    ) -> Optional["MetadataChangeProposalWrapper"]:
+        """Attempts to create a MetadataChangeProposalWrapper from a MetadataChangeProposalClass.
+        Neatly handles unsupported, expected cases, such as unknown aspect types or non-json content type.
+
+        Raises:
+            Exception if the generic aspect is invalid, e.g. contains invalid json.
+        """
+
+        if mcpc.changeType != ChangeTypeClass.UPSERT:
+            # We can only generate MCPWs for upserts.
+            return None
+
+        converted, aspect = _try_from_generic_aspect(mcpc.aspectName, mcpc.aspect)
         if converted:
             return cls(
-                entityType=mcp.entityType,
-                entityUrn=mcp.entityUrn,
-                changeType=mcp.changeType,
-                auditHeader=mcp.auditHeader,
-                aspectName=mcp.aspectName,
+                entityType=mcpc.entityType,
+                entityUrn=mcpc.entityUrn,
+                changeType=mcpc.changeType,
+                auditHeader=mcpc.auditHeader,
+                aspectName=mcpc.aspectName,
                 aspect=aspect,
-                systemMetadata=mcp.systemMetadata,
+                systemMetadata=mcpc.systemMetadata,
             )
+        else:
+            return None
 
-        return mcp
+    @classmethod
+    def try_from_mcl(
+        cls, mcl: MetadataChangeLogClass
+    ) -> Union["MetadataChangeProposalWrapper", MetadataChangeProposalClass]:
+        mcpc = MetadataChangeProposalClass(
+            entityUrn=mcl.entityUrn,
+            entityType=mcl.entityType,
+            entityKeyAspect=mcl.entityKeyAspect,
+            aspect=mcl.aspect,
+            aspectName=mcl.aspectName,
+            changeType=mcl.changeType,
+            auditHeader=mcl.auditHeader,
+            systemMetadata=mcl.systemMetadata,
+        )
+        return cls.try_from_mcpc(mcpc) or mcpc
 
     @classmethod
     def from_obj_require_wrapper(
@@ -200,17 +239,15 @@ class MetadataChangeProposalWrapper:
         assert isinstance(mcp, cls)
         return mcp
 
-    def as_workunit(self) -> "MetadataWorkUnit":
+    def as_workunit(
+        self, *, treat_errors_as_warnings: bool = False, is_primary_source: bool = True
+    ) -> "MetadataWorkUnit":
         from datahub.ingestion.api.workunit import MetadataWorkUnit
 
-        if self.aspect and self.aspectName in TIMESERIES_ASPECT_MAP:
-            # TODO: Make this a cleaner interface.
-            ts = getattr(self.aspect, "timestampMillis", None)
-            assert ts is not None
-
-            # If the aspect is a timeseries aspect, include the timestampMillis in the ID.
-            return MetadataWorkUnit(
-                id=f"{self.entityUrn}-{self.aspectName}-{ts}", mcp=self
-            )
-
-        return MetadataWorkUnit(id=f"{self.entityUrn}-{self.aspectName}", mcp=self)
+        id = MetadataWorkUnit.generate_workunit_id(self)
+        return MetadataWorkUnit(
+            id=id,
+            mcp=self,
+            treat_errors_as_warnings=treat_errors_as_warnings,
+            is_primary_source=is_primary_source,
+        )

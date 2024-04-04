@@ -19,6 +19,9 @@ fragment dataFlowFields on DataFlow {
             value
         }
     }
+    privileges {
+        ...entityPrivileges
+    }
     editableProperties {
         description
     }
@@ -37,6 +40,7 @@ fragment dataFlowFields on DataFlow {
     domain {
         ...entityDomain
     }
+    ...entityDataProduct
     status {
         removed
     }
@@ -45,6 +49,15 @@ fragment dataFlowFields on DataFlow {
     }
     dataPlatformInstance {
         ...dataPlatformInstanceFields
+    }
+    browsePathV2 {
+        ...browsePathV2Fields
+    }
+    health {
+        ...entityHealth
+    }
+    activeIncidents: incidents(start: 0, count: 1, state: ACTIVE) {
+        total
     }
 }
 
@@ -97,6 +110,17 @@ query getDataFlow($urn: String!) {
                     }
                 }
             }
+        }
+        autoRenderAspects: aspects(input: { autoRenderOnly: true }) {
+            ...autoRenderAspectFields
+        }
+        structuredProperties {
+            properties {
+                ...structuredPropertiesFields
+            }
+        }
+        forms {
+            ...formsFields
         }
     }
 }

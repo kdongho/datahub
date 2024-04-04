@@ -4,6 +4,7 @@
 #     3) Entity timeseries stat by user
 
 import concurrent
+import concurrent.futures
 import dataclasses
 import datetime
 import logging
@@ -12,7 +13,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, cast
 
-from looker_sdk.sdk.api31.models import Dashboard, LookWithQuery
+from looker_sdk.sdk.api40.models import Dashboard, LookWithQuery
 
 import datahub.emitter.mce_builder as builder
 from datahub.emitter.mce_builder import Aspect, AspectAbstract
@@ -36,7 +37,6 @@ from datahub.ingestion.source.looker.looker_query_model import (
 )
 from datahub.metadata.schema_classes import (
     CalendarIntervalClass,
-    ChangeTypeClass,
     ChartUsageStatisticsClass,
     ChartUserUsageCountsClass,
     DashboardUsageStatisticsClass,
@@ -206,7 +206,7 @@ class BaseStatGenerator(ABC):
         pass
 
     @abstractmethod
-    def _get_mcp_attributes(self, model: ModelForUsage) -> Dict:
+    def _get_urn(self, model: ModelForUsage) -> str:
         pass
 
     @abstractmethod
@@ -227,8 +227,8 @@ class BaseStatGenerator(ABC):
         self, model: ModelForUsage, aspect: Aspect
     ) -> MetadataChangeProposalWrapper:
         return MetadataChangeProposalWrapper(
+            entityUrn=self._get_urn(model=model),
             aspect=aspect,
-            **self._get_mcp_attributes(model=model),
         )
 
     def _round_time(self, date_time: str) -> int:
@@ -239,7 +239,7 @@ class BaseStatGenerator(ABC):
             * 1000
         )
 
-    def _get_user_identifier(self, row: Dict) -> int:
+    def _get_user_identifier(self, row: Dict) -> str:
         return row[UserViewField.USER_ID]
 
     def _process_entity_timeseries_rows(
@@ -358,7 +358,7 @@ class BaseStatGenerator(ABC):
                 rows = [r for r in rows if self.get_id_from_row(r) in self.id_vs_model]
                 logger.debug("Filtered down to %d rows", len(rows))
         except Exception as e:
-            logger.warning(f"Failed to execute {query_name} query", e)
+            logger.warning(f"Failed to execute {query_name} query: {e}")
 
         return rows
 
@@ -449,20 +449,14 @@ class DashboardStatGenerator(BaseStatGenerator):
             row[HistoryViewField.HISTORY_CREATED_DATE],
         )
 
-    def _get_mcp_attributes(self, model: ModelForUsage) -> Dict:
-        dashboard: Dashboard = cast(Dashboard, model)
-        if dashboard is None or dashboard.id is None:  # to pass mypy lint
-            return {}
+    def _get_urn(self, model: ModelForUsage) -> str:
+        assert isinstance(model, LookerDashboardForUsage)
+        assert model.id is not None
 
-        return {
-            "entityUrn": builder.make_dashboard_urn(
-                self.config.platform_name,
-                looker_common.get_urn_looker_dashboard_id(dashboard.id),
-            ),
-            "entityType": "dashboard",
-            "changeType": ChangeTypeClass.UPSERT,
-            "aspectName": "dashboardUsageStatistics",
-        }
+        return builder.make_dashboard_urn(
+            self.config.platform_name,
+            looker_common.get_urn_looker_dashboard_id(model.id),
+        )
 
     def to_entity_absolute_stat_aspect(
         self, looker_object: ModelForUsage
@@ -568,20 +562,14 @@ class LookStatGenerator(BaseStatGenerator):
             row[HistoryViewField.HISTORY_CREATED_DATE],
         )
 
-    def _get_mcp_attributes(self, model: ModelForUsage) -> Dict:
-        look: LookerChartForUsage = cast(LookerChartForUsage, model)
-        if look is None or look.id is None:
-            return {}
+    def _get_urn(self, model: ModelForUsage) -> str:
+        assert isinstance(model, LookerChartForUsage)
+        assert model.id is not None
 
-        return {
-            "entityUrn": builder.make_chart_urn(
-                self.config.platform_name,
-                looker_common.get_urn_looker_element_id(str(look.id)),
-            ),
-            "entityType": "chart",
-            "changeType": ChangeTypeClass.UPSERT,
-            "aspectName": "chartUsageStatistics",
-        }
+        return builder.make_chart_urn(
+            self.config.platform_name,
+            looker_common.get_urn_looker_element_id(str(model.id)),
+        )
 
     def to_entity_absolute_stat_aspect(
         self, looker_object: ModelForUsage

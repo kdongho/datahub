@@ -11,13 +11,14 @@ import { decodeUrn } from '../shared/utils';
 import UserInfoSideBar from './UserInfoSideBar';
 import { useEntityRegistry } from '../../useEntityRegistry';
 import { ErrorSection } from '../../shared/error/ErrorSection';
+import NonExistentEntityPage from '../shared/entity/NonExistentEntityPage';
 
 export interface Props {
     onTabChange: (selectedTab: string) => void;
 }
 
 export enum TabType {
-    Assets = 'Assets',
+    Assets = 'Owner Of',
     Groups = 'Groups',
 }
 const ENABLED_TAB_TYPES = [TabType.Assets, TabType.Groups];
@@ -105,7 +106,7 @@ export default function UserProfile() {
             (data?.corpUser && entityRegistry.getDisplayName(EntityType.CorpUser, data?.corpUser)) ||
             undefined,
         role: data?.corpUser?.editableProperties?.title || data?.corpUser?.info?.title || undefined,
-        team: data?.corpUser?.editableProperties?.teams?.join(',') || undefined,
+        team: data?.corpUser?.editableProperties?.teams?.join(',') || data?.corpUser?.info?.departmentName || undefined,
         email: data?.corpUser?.editableProperties?.email || data?.corpUser?.info?.email || undefined,
         slack: data?.corpUser?.editableProperties?.slack || undefined,
         phone: data?.corpUser?.editableProperties?.phone || undefined,
@@ -114,6 +115,11 @@ export default function UserProfile() {
         dataHubRoles: userRoles,
         urn,
     };
+
+    if (data?.corpUser?.exists === false) {
+        return <NonExistentEntityPage />;
+    }
+    
     return (
         <>
             {error && <ErrorSection />}

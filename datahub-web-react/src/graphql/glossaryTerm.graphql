@@ -42,6 +42,18 @@ query getGlossaryTerm($urn: String!, $start: Int, $count: Int) {
                 }
             }
         }
+        containedBy: relationships(input: { types: ["HasA"], direction: INCOMING, start: $start, count: $count }) {
+            start
+            count
+            total
+            relationships {
+                entity {
+                    ... on GlossaryTerm {
+                        urn
+                    }
+                }
+            }
+        }
         parentNodes {
             ...parentNodesFields
         }
@@ -73,7 +85,18 @@ query getGlossaryTerm($urn: String!, $start: Int, $count: Int) {
             ...deprecationFields
         }
         privileges {
-            canManageEntity
+            ...entityPrivileges
+        }
+        autoRenderAspects: aspects(input: { autoRenderOnly: true }) {
+            ...autoRenderAspectFields
+        }
+        structuredProperties {
+            properties {
+                ...structuredPropertiesFields
+            }
+        }
+        forms {
+            ...formsFields
         }
     }
 }

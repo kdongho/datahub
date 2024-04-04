@@ -7,6 +7,7 @@ import { Entity, EntityCapabilityType, IconStyleType, PreviewType } from '../Ent
 import { getDataForEntityType } from '../shared/containers/profile/utils';
 import { urlEncodeUrn } from '../shared/utils';
 import TagProfile from './TagProfile';
+import { useGetTagQuery } from '../../../graphql/tag.generated';
 
 const PreviewTagIcon = styled(TagOutlined)`
     font-size: 20px;
@@ -18,20 +19,20 @@ const PreviewTagIcon = styled(TagOutlined)`
 export class TagEntity implements Entity<Tag> {
     type: EntityType = EntityType.Tag;
 
-    icon = (fontSize: number, styleType: IconStyleType) => {
+    icon = (fontSize: number, styleType: IconStyleType, color?: string) => {
         if (styleType === IconStyleType.TAB_VIEW) {
-            return <TagFilled style={{ fontSize }} />;
+            return <TagFilled style={{ fontSize, color }} />;
         }
 
         if (styleType === IconStyleType.HIGHLIGHT) {
-            return <TagFilled style={{ fontSize, color: '#B37FEB' }} />;
+            return <TagFilled style={{ fontSize, color: color || '#B37FEB' }} />;
         }
 
         return (
             <TagOutlined
                 style={{
                     fontSize,
-                    color: '#BFBFBF',
+                    color: color || '#BFBFBF',
                 }}
             />
         );
@@ -51,12 +52,14 @@ export class TagEntity implements Entity<Tag> {
 
     getEntityName: () => string = () => 'Tag';
 
+    useEntityQuery = useGetTagQuery;
+
     renderProfile: (urn: string) => JSX.Element = (_) => <TagProfile />;
 
     renderPreview = (_: PreviewType, data: Tag) => (
         <DefaultPreviewCard
             description={data.description || ''}
-            name={data.name}
+            name={this.displayName(data)}
             urn={data.urn}
             url={`/${this.getPathName()}/${urlEncodeUrn(data.urn)}`}
             logoComponent={<PreviewTagIcon />}

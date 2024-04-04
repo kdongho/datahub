@@ -40,6 +40,7 @@ class SagemakerSource(Source):
     - Models, jobs, and lineage between the two (e.g. when jobs output a model or a model is used by a job)
     """
 
+    platform = "sagemaker"
     source_config: SagemakerSourceConfig
     report = SagemakerSourceReport()
 
@@ -55,7 +56,7 @@ class SagemakerSource(Source):
         config = SagemakerSourceConfig.parse_obj(config_dict)
         return cls(config, ctx)
 
-    def get_workunits(self) -> Iterable[MetadataWorkUnit]:
+    def get_workunits_internal(self) -> Iterable[MetadataWorkUnit]:
         # get common lineage graph
         lineage_processor = LineageProcessor(
             sagemaker_client=self.sagemaker_client, env=self.env, report=self.report
@@ -81,7 +82,7 @@ class SagemakerSource(Source):
                 env=self.env,
                 report=self.report,
                 job_type_filter=self.source_config.extract_jobs,
-                aws_region=self.source_config.aws_region,
+                aws_region=self.sagemaker_client.meta.region_name,
             )
             yield from job_processor.get_workunits()
 
@@ -97,7 +98,7 @@ class SagemakerSource(Source):
                 model_image_to_jobs=model_image_to_jobs,
                 model_name_to_jobs=model_name_to_jobs,
                 lineage=lineage,
-                aws_region=self.source_config.aws_region,
+                aws_region=self.sagemaker_client.meta.region_name,
             )
             yield from model_processor.get_workunits()
 

@@ -1,21 +1,46 @@
 import datetime
+import logging
 from abc import ABCMeta, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, Generic, Iterable, Optional, Set, Type, TypeVar, Union, cast
+from functools import partial
+from typing import (
+    Callable,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from pydantic import BaseModel
 
 from datahub.configuration.common import ConfigModel
+from datahub.configuration.source_common import PlatformInstanceConfigMixin
 from datahub.emitter.mcp_builder import mcps_from_mce
 from datahub.ingestion.api.closeable import Closeable
 from datahub.ingestion.api.common import PipelineContext, RecordEnvelope, WorkUnit
 from datahub.ingestion.api.report import Report
+from datahub.ingestion.api.source_helpers import (
+    auto_browse_path_v2,
+    auto_lowercase_urns,
+    auto_materialize_referenced_tags,
+    auto_status_aspect,
+    auto_workunit_reporter,
+)
 from datahub.ingestion.api.workunit import MetadataWorkUnit
 from datahub.metadata.com.linkedin.pegasus2avro.mxe import MetadataChangeEvent
 from datahub.utilities.lossy_collections import LossyDict, LossyList
 from datahub.utilities.type_annotations import get_class_from_annotation
+
+logger = logging.getLogger(__name__)
 
 
 class SourceCapability(Enum):
@@ -32,6 +57,7 @@ class SourceCapability(Enum):
     TAGS = "Extract Tags"
     SCHEMA_METADATA = "Schema Metadata"
     CONTAINERS = "Asset Containers"
+    CLASSIFICATION = "Classification"
 
 
 @dataclass
@@ -76,10 +102,18 @@ class SourceReport(Report):
         warnings.append(reason)
         self.warnings[key] = warnings
 
+    def warning(self, key: str, reason: str) -> None:
+        self.report_warning(key, reason)
+        logger.warning(f"{key} => {reason}", stacklevel=2)
+
     def report_failure(self, key: str, reason: str) -> None:
         failures = self.failures.get(key, LossyList())
         failures.append(reason)
         self.failures[key] = failures
+
+    def failure(self, key: str, reason: str) -> None:
+        self.report_failure(key, reason)
+        logger.error(f"{key} => {reason}", stacklevel=2)
 
     def __post_init__(self) -> None:
         self.start_time = datetime.datetime.now()
@@ -118,6 +152,9 @@ class TestConnectionReport(Report):
 WorkUnitType = TypeVar("WorkUnitType", bound=WorkUnit)
 ExtractorConfig = TypeVar("ExtractorConfig", bound=ConfigModel)
 
+WorkUnitProcessor = Callable[[Iterable[WorkUnitType]], Iterable[WorkUnitType]]
+MetadataWorkUnitProcessor = WorkUnitProcessor[MetadataWorkUnit]
+
 
 class Extractor(Generic[WorkUnitType, ExtractorConfig], Closeable, metaclass=ABCMeta):
     ctx: PipelineContext
@@ -155,9 +192,81 @@ class Source(Closeable, metaclass=ABCMeta):
         # can't make this method abstract.
         raise NotImplementedError('sources must implement "create"')
 
-    @abstractmethod
-    def get_workunits(self) -> Iterable[WorkUnit]:
-        pass
+    def get_workunit_processors(self) -> List[Optional[MetadataWorkUnitProcessor]]:
+        """A list of functions that transforms the workunits produced by this source.
+        Run in order, first in list is applied first. Be careful with order when overriding.
+        """
+        browse_path_processor: Optional[MetadataWorkUnitProcessor] = None
+        if (
+            self.ctx.pipeline_config
+            and self.ctx.pipeline_config.flags.generate_browse_path_v2
+        ):
+            browse_path_processor = self._get_browse_path_processor(
+                self.ctx.pipeline_config.flags.generate_browse_path_v2_dry_run
+            )
+
+        auto_lowercase_dataset_urns: Optional[MetadataWorkUnitProcessor] = None
+        if (
+            self.ctx.pipeline_config
+            and self.ctx.pipeline_config.source
+            and self.ctx.pipeline_config.source.config
+            and (
+                (
+                    hasattr(
+                        self.ctx.pipeline_config.source.config,
+                        "convert_urns_to_lowercase",
+                    )
+                    and self.ctx.pipeline_config.source.config.convert_urns_to_lowercase
+                )
+                or (
+                    hasattr(self.ctx.pipeline_config.source.config, "get")
+                    and self.ctx.pipeline_config.source.config.get(
+                        "convert_urns_to_lowercase"
+                    )
+                )
+            )
+        ):
+            auto_lowercase_dataset_urns = auto_lowercase_urns
+
+        return [
+            auto_lowercase_dataset_urns,
+            auto_status_aspect,
+            auto_materialize_referenced_tags,
+            browse_path_processor,
+            partial(auto_workunit_reporter, self.get_report()),
+        ]
+
+    @staticmethod
+    def _apply_workunit_processors(
+        workunit_processors: Sequence[Optional[MetadataWorkUnitProcessor]],
+        stream: Iterable[MetadataWorkUnit],
+    ) -> Iterable[MetadataWorkUnit]:
+        for processor in workunit_processors:
+            if processor is not None:
+                stream = processor(stream)
+        return stream
+
+    def get_workunits(self) -> Iterable[MetadataWorkUnit]:
+        return self._apply_workunit_processors(
+            self.get_workunit_processors(), self.get_workunits_internal()
+        )
+
+    def get_workunits_internal(self) -> Iterable[MetadataWorkUnit]:
+        raise NotImplementedError(
+            "get_workunits_internal must be implemented if get_workunits is not overriden."
+        )
+
+    def get_config(self) -> Optional[ConfigModel]:
+        """Overridable method to return the config object for this source.
+
+        Enables defining workunit processors in this class, rather than per source.
+        More broadly, this method contributes to the standardization of sources,
+        to promote more source-generic functionality.
+
+        Eventually, would like to replace this call with a Protocol that requires
+        a config object to be defined on each source.
+        """
+        return getattr(self, "config", None) or getattr(self, "source_config", None)
 
     @abstractmethod
     def get_report(self) -> SourceReport:
@@ -165,6 +274,30 @@ class Source(Closeable, metaclass=ABCMeta):
 
     def close(self) -> None:
         pass
+
+    def _get_browse_path_processor(self, dry_run: bool) -> MetadataWorkUnitProcessor:
+        config = self.get_config()
+        platform = getattr(self, "platform", None) or getattr(config, "platform", None)
+        env = getattr(config, "env", None)
+        browse_path_drop_dirs = [
+            platform,
+            platform and platform.lower(),
+            env,
+            env and env.lower(),
+        ]
+
+        platform_instance: Optional[str] = None
+        if isinstance(config, PlatformInstanceConfigMixin) and config.platform_instance:
+            platform_instance = config.platform_instance
+
+        browse_path_processor = partial(
+            auto_browse_path_v2,
+            platform=platform,
+            platform_instance=platform_instance,
+            drop_dirs=[s for s in browse_path_drop_dirs if s is not None],
+            dry_run=dry_run,
+        )
+        return lambda stream: browse_path_processor(stream)
 
 
 class TestableSource(Source):

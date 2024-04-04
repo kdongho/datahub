@@ -51,7 +51,7 @@ def pretty_id(id: Optional[str]) -> str:
     if id.startswith("urn:li:dataset"):
         dataset_key = dataset_urn_to_key(id)
         if dataset_key:
-            return f"{colored('dataset','cyan')}:{colored(dataset_key.platform,'white')}:{colored(dataset_key.name,'white')}"
+            return f"{colored('dataset','cyan')}:{colored(dataset_key.platform[len('urn:li:dataPlatform:'):],'white')}:{colored(dataset_key.name,'white')}"
     # failed to prettify, return original
     return id
 
@@ -127,7 +127,7 @@ def get_timeline(
 @click.option("--raw", type=bool, is_flag=True, help="Show the raw diff")
 @click.pass_context
 @upgrade.check_upgrade
-@telemetry.with_telemetry
+@telemetry.with_telemetry()
 def timeline(
     ctx: Any,
     urn: str,

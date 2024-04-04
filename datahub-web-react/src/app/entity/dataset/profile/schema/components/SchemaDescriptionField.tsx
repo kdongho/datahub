@@ -78,21 +78,31 @@ const StyledViewer = styled(Editor)`
 `;
 
 type Props = {
+    onExpanded: (expanded: boolean) => void;
+    expanded: boolean;
     description: string;
     original?: string | null;
     onUpdate: (
         description: string,
     ) => Promise<FetchResult<UpdateDatasetMutation, Record<string, any>, Record<string, any>> | void>;
     isEdited?: boolean;
+    isReadOnly?: boolean;
 };
 
 const ABBREVIATED_LIMIT = 80;
 
-export default function DescriptionField({ description, onUpdate, isEdited = false, original }: Props) {
+export default function DescriptionField({
+    expanded,
+    onExpanded: handleExpanded,
+    description,
+    onUpdate,
+    isEdited = false,
+    original,
+    isReadOnly,
+}: Props) {
     const [showAddModal, setShowAddModal] = useState(false);
     const overLimit = removeMarkdown(description).length > 80;
-    const [expanded, setExpanded] = useState(!overLimit);
-    const isSchemaEditable = React.useContext(SchemaEditableContext);
+    const isSchemaEditable = React.useContext(SchemaEditableContext) && !isReadOnly;
     const onCloseModal = () => setShowAddModal(false);
     const { urn, entityType } = useEntityData();
 
@@ -129,15 +139,16 @@ export default function DescriptionField({ description, onUpdate, isEdited = fal
 
     return (
         <DescriptionContainer>
-            {expanded ? (
+            {expanded || !overLimit ? (
                 <>
                     {!!description && <StyledViewer content={description} readOnly />}
-                    {!!description && (
+                    {!!description && (EditButton || overLimit) && (
                         <ExpandedActions>
                             {overLimit && (
                                 <ReadLessText
-                                    onClick={() => {
-                                        setExpanded(false);
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleExpanded(false);
                                     }}
                                 >
                                     Read Less
@@ -154,8 +165,9 @@ export default function DescriptionField({ description, onUpdate, isEdited = fal
                         readMore={
                             <>
                                 <Typography.Link
-                                    onClick={() => {
-                                        setExpanded(true);
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleExpanded(true);
                                     }}
                                 >
                                     Read More
@@ -169,7 +181,7 @@ export default function DescriptionField({ description, onUpdate, isEdited = fal
                     </StripMarkdownText>
                 </>
             )}
-            {isSchemaEditable && isEdited && <EditedLabel>(edited)</EditedLabel>}
+            {isEdited && <EditedLabel>(edited)</EditedLabel>}
             {showAddModal && (
                 <div>
                     <UpdateDescriptionModal

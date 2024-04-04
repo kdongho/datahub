@@ -1,6 +1,7 @@
-import { EntityType, SearchResult } from '../../types.generated';
+import { QueryHookOptions, QueryResult } from '@apollo/client';
+import { EntityType, Exact, SearchResult } from '../../types.generated';
 import { FetchedEntity } from '../lineage/types';
-import { GenericEntityProperties } from './shared/types';
+import { EntitySidebarSection, GenericEntityProperties } from './shared/types';
 
 export enum PreviewType {
     /**
@@ -76,6 +77,10 @@ export enum EntityCapabilityType {
      * Assigning a role to an entity. Currently only supported for users.
      */
     ROLES,
+    /**
+     * Assigning the entity to a data product
+     */
+    DATA_PRODUCTS,
 }
 
 /**
@@ -93,7 +98,7 @@ export interface Entity<T> {
      * Ant-design icon associated with the Entity. For a list of all candidate icons, see
      * https://ant.design/components/icon/
      */
-    icon: (fontSize: number, styleType: IconStyleType) => JSX.Element;
+    icon: (fontSize: number, styleType: IconStyleType, color?: string) => JSX.Element;
 
     /**
      * Returns whether the entity search is enabled
@@ -172,4 +177,26 @@ export interface Entity<T> {
      * Returns the profile component to be displayed in our Chrome extension
      */
     renderEmbeddedProfile?: (urn: string) => JSX.Element;
+
+    /**
+     * Returns the entity profile sidebar sections for an entity type. Only implemented on Datasets for now.
+     */
+    getSidebarSections?: () => EntitySidebarSection[];
+
+    /**
+     * Get the query necessary for refetching data on an entity profile page
+     */
+    useEntityQuery?: (
+        baseOptions: QueryHookOptions<
+            any,
+            Exact<{
+                urn: string;
+            }>
+        >,
+    ) => QueryResult<
+        any,
+        Exact<{
+            urn: string;
+        }>
+    >;
 }

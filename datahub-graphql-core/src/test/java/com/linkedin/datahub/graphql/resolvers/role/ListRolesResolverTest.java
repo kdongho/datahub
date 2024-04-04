@@ -1,5 +1,12 @@
 package com.linkedin.datahub.graphql.resolvers.role;
 
+import static com.linkedin.datahub.graphql.TestUtils.*;
+import static com.linkedin.metadata.Constants.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyInt;
+import static org.testng.Assert.*;
+
 import com.datahub.authentication.Authentication;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -22,14 +29,6 @@ import java.util.Map;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import static com.linkedin.datahub.graphql.TestUtils.*;
-import static com.linkedin.metadata.Constants.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.*;
-import static org.testng.Assert.*;
-
-
 public class ListRolesResolverTest {
   private static final String ADMIN_ROLE_URN_STRING = "urn:li:dataHubRole:Admin";
   private static final String EDITOR_ROLE_URN_STRING = "urn:li:dataHubRole:Editor";
@@ -45,8 +44,11 @@ public class ListRolesResolverTest {
     DataHubRoleInfo dataHubRoleInfo = new DataHubRoleInfo();
     dataHubRoleInfo.setDescription(roleUrn.toString());
     dataHubRoleInfo.setName(roleUrn.toString());
-    entityResponse.setAspects(new EnvelopedAspectMap(ImmutableMap.of(DATAHUB_ROLE_INFO_ASPECT_NAME,
-        new EnvelopedAspect().setValue(new Aspect(dataHubRoleInfo.data())))));
+    entityResponse.setAspects(
+        new EnvelopedAspectMap(
+            ImmutableMap.of(
+                DATAHUB_ROLE_INFO_ASPECT_NAME,
+                new EnvelopedAspect().setValue(new Aspect(dataHubRoleInfo.data())))));
 
     return entityResponse;
   }
@@ -55,8 +57,12 @@ public class ListRolesResolverTest {
   public void setupTest() throws Exception {
     Urn adminRoleUrn = Urn.createFromString(ADMIN_ROLE_URN_STRING);
     Urn editorRoleUrn = Urn.createFromString(EDITOR_ROLE_URN_STRING);
-    _entityResponseMap = ImmutableMap.of(adminRoleUrn, getMockRoleEntityResponse(adminRoleUrn), editorRoleUrn,
-        getMockRoleEntityResponse(editorRoleUrn));
+    _entityResponseMap =
+        ImmutableMap.of(
+            adminRoleUrn,
+            getMockRoleEntityResponse(adminRoleUrn),
+            editorRoleUrn,
+            getMockRoleEntityResponse(editorRoleUrn));
 
     _entityClient = mock(EntityClient.class);
     _dataFetchingEnvironment = mock(DataFetchingEnvironment.class);
@@ -82,14 +88,22 @@ public class ListRolesResolverTest {
     ListRolesInput input = new ListRolesInput();
     when(_dataFetchingEnvironment.getArgument("input")).thenReturn(input);
     final SearchResult roleSearchResult =
-        new SearchResult().setMetadata(new SearchResultMetadata()).setFrom(0).setPageSize(10).setNumEntities(2);
-    roleSearchResult.setEntities(new SearchEntityArray(
-        ImmutableList.of(new SearchEntity().setEntity(Urn.createFromString(ADMIN_ROLE_URN_STRING)),
-            new SearchEntity().setEntity(Urn.createFromString(EDITOR_ROLE_URN_STRING)))));
+        new SearchResult()
+            .setMetadata(new SearchResultMetadata())
+            .setFrom(0)
+            .setPageSize(10)
+            .setNumEntities(2);
+    roleSearchResult.setEntities(
+        new SearchEntityArray(
+            ImmutableList.of(
+                new SearchEntity().setEntity(Urn.createFromString(ADMIN_ROLE_URN_STRING)),
+                new SearchEntity().setEntity(Urn.createFromString(EDITOR_ROLE_URN_STRING)))));
 
-    when(_entityClient.search(eq(DATAHUB_ROLE_ENTITY_NAME), any(), any(), anyInt(), anyInt(), any(), eq(Boolean.TRUE))).thenReturn(
-        roleSearchResult);
-    when(_entityClient.batchGetV2(eq(DATAHUB_ROLE_ENTITY_NAME), any(), any(), any())).thenReturn(_entityResponseMap);
+    when(_entityClient.search(
+            any(), eq(DATAHUB_ROLE_ENTITY_NAME), any(), any(), anyInt(), anyInt()))
+        .thenReturn(roleSearchResult);
+    when(_entityClient.batchGetV2(eq(DATAHUB_ROLE_ENTITY_NAME), any(), any(), any()))
+        .thenReturn(_entityResponseMap);
 
     ListRolesResult result = _resolver.get(_dataFetchingEnvironment).join();
     assertEquals(result.getStart(), 0);

@@ -1,11 +1,17 @@
 import logging
-from typing import List
+from typing import List, Optional
 
 import sqlparse
 
+from datahub.ingestion.api.common import PipelineContext
+from datahub.sql_parsing.sqlglot_lineage import (
+    SqlParsingResult,
+    create_lineage_sql_parsed_result,
+)
+
 SPECIAL_CHARACTERS = ["#(lf)", "(lf)"]
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def remove_special_characters(native_query: str) -> str:
@@ -17,14 +23,14 @@ def remove_special_characters(native_query: str) -> str:
 
 def get_tables(native_query: str) -> List[str]:
     native_query = remove_special_characters(native_query)
-    logger.debug("Processing query = %s", native_query)
+    logger.debug(f"Processing native query = {native_query}")
     tables: List[str] = []
     parsed = sqlparse.parse(native_query)[0]
     tokens: List[sqlparse.sql.Token] = list(parsed.tokens)
     length: int = len(tokens)
     from_index: int = -1
     for index, token in enumerate(tokens):
-        logger.debug("%s=%s", token.value, token.ttype)
+        logger.debug(f"{token.value}={token.ttype}")
         if (
             token.value.lower().strip() == "from"
             and str(token.ttype) == "Token.Keyword"
@@ -37,11 +43,38 @@ def get_tables(native_query: str) -> List[str]:
         from_index < length
         and isinstance(tokens[from_index], sqlparse.sql.Where) is not True
     ):
-        logger.debug("%s=%s", tokens[from_index].value, tokens[from_index].ttype)
-        logger.debug("Type=%s", type(tokens[from_index]))
+        logger.debug(f"{tokens[from_index].value}={tokens[from_index].ttype}")
+        logger.debug(f"Type={type(tokens[from_index])}")
         if isinstance(tokens[from_index], sqlparse.sql.Identifier):
             # Split on as keyword and collect the table name from 0th position. strip any spaces
             tables.append(tokens[from_index].value.split("as")[0].strip())
         from_index = from_index + 1
 
     return tables
+
+
+def parse_custom_sql(
+    ctx: PipelineContext,
+    query: str,
+    schema: Optional[str],
+    database: Optional[str],
+    platform: str,
+    env: str,
+    platform_instance: Optional[str],
+) -> Optional["SqlParsingResult"]:
+
+    logger.debug("Using sqlglot_lineage to parse custom sql")
+
+    sql_query = remove_special_characters(query)
+
+    logger.debug(f"Processing native query = {sql_query}")
+
+    return create_lineage_sql_parsed_result(
+        query=sql_query,
+        default_schema=schema,
+        default_db=database,
+        platform=platform,
+        platform_instance=platform_instance,
+        env=env,
+        graph=ctx.graph,
+    )

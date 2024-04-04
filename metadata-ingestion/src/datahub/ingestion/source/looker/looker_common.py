@@ -1,38 +1,47 @@
-from __future__ import print_function
-
-import dataclasses
 import datetime
+import itertools
 import logging
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass, field as dataclasses_field
 from enum import Enum
 from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
-    ClassVar,
     Dict,
     Iterable,
+    Iterator,
     List,
     Optional,
+    Sequence,
     Set,
     Tuple,
     Union,
+    cast,
 )
 
-import pydantic
 from looker_sdk.error import SDKError
-from looker_sdk.sdk.api31.models import User, WriteQuery
-from pydantic import Field
+from looker_sdk.sdk.api40.models import (
+    LookmlModelExplore,
+    LookmlModelExploreField,
+    User,
+    WriteQuery,
+)
 from pydantic.class_validators import validator
 
 import datahub.emitter.mce_builder as builder
-from datahub.configuration import ConfigModel
-from datahub.configuration.common import ConfigurationError
-from datahub.configuration.source_common import DatasetSourceConfigBase
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.emitter.mcp_builder import create_embed_mcp
 from datahub.ingestion.api.report import Report
 from datahub.ingestion.api.source import SourceReport
+from datahub.ingestion.source.common.subtypes import DatasetSubTypes
+from datahub.ingestion.source.looker.looker_config import (
+    LookerCommonConfig,
+    LookerDashboardSourceConfig,
+    NamingPatternMapping,
+    ViewNamingPatternMapping,
+)
+from datahub.ingestion.source.looker.looker_constant import IMPORTED_PROJECTS
 from datahub.ingestion.source.looker.looker_lib_wrapper import LookerAPI
 from datahub.ingestion.source.sql.sql_types import (
     POSTGRES_TYPES_MAP,
@@ -42,6 +51,7 @@ from datahub.ingestion.source.sql.sql_types import (
 from datahub.ingestion.source.state.stale_entity_removal_handler import (
     StaleEntityRemovalSourceReport,
 )
+from datahub.metadata.com.linkedin.pegasus2avro.common import AuditStamp
 from datahub.metadata.com.linkedin.pegasus2avro.dataset import (
     DatasetLineageTypeClass,
     FineGrainedLineageDownstreamType,
@@ -67,14 +77,10 @@ from datahub.metadata.com.linkedin.pegasus2avro.schema import (
 )
 from datahub.metadata.schema_classes import (
     BrowsePathsClass,
-    ChangeTypeClass,
     DatasetPropertiesClass,
     EnumTypeClass,
     FineGrainedLineageClass,
     GlobalTagsClass,
-    OwnerClass,
-    OwnershipClass,
-    OwnershipTypeClass,
     SchemaMetadataClass,
     StatusClass,
     SubTypesClass,
@@ -85,6 +91,8 @@ from datahub.metadata.schema_classes import (
 from datahub.utilities.lossy_collections import LossyList, LossySet
 from datahub.utilities.url_util import remove_port_from_url
 
+CORPUSER_DATAHUB = "urn:li:corpuser:datahub"
+
 if TYPE_CHECKING:
     from datahub.ingestion.source.looker.lookml_source import (
         LookerViewFileLoader,
@@ -94,115 +102,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class NamingPattern(ConfigModel):
-    ALLOWED_VARS: ClassVar[List[str]] = []
-    REQUIRE_AT_LEAST_ONE_VAR: ClassVar[bool] = True
-
-    pattern: str
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.pydantic_accept_raw_pattern
-        yield cls.validate
-        yield cls.pydantic_validate_pattern
-
-    @classmethod
-    def pydantic_accept_raw_pattern(cls, v):
-        if isinstance(v, (NamingPattern, dict)):
-            return v
-        assert isinstance(v, str), "pattern must be a string"
-        return {"pattern": v}
-
-    @classmethod
-    def pydantic_validate_pattern(cls, v):
-        assert isinstance(v, NamingPattern)
-        assert v.validate_pattern(cls.REQUIRE_AT_LEAST_ONE_VAR)
-        return v
-
-    @classmethod
-    def allowed_docstring(cls) -> str:
-        return f"Allowed variables are {cls.ALLOWED_VARS}"
-
-    def validate_pattern(self, at_least_one: bool) -> bool:
-        variables = re.findall("({[^}{]+})", self.pattern)
-
-        variables = [v[1:-1] for v in variables]  # remove the {}
-
-        for v in variables:
-            if v not in self.ALLOWED_VARS:
-                raise ConfigurationError(
-                    f"Failed to find {v} in allowed_variables {self.ALLOWED_VARS}"
-                )
-        if at_least_one and len(variables) == 0:
-            raise ConfigurationError(
-                f"Failed to find any variable assigned to pattern {self.pattern}. Must have at least one. {self.allowed_docstring()}"
-            )
-        return True
-
-    def replace_variables(self, values: Union[Dict[str, Optional[str]], object]) -> str:
-        if not isinstance(values, dict):
-            assert dataclasses.is_dataclass(values)
-            values = dataclasses.asdict(values)
-        values = {k: v for k, v in values.items() if v is not None}
-        return self.pattern.format(**values)
-
-
-@dataclass
-class NamingPatternMapping:
-    platform: str
-    env: str
-    project: str
-    model: str
-    name: str
-
-
-class LookerNamingPattern(NamingPattern):
-    ALLOWED_VARS = [field.name for field in dataclasses.fields(NamingPatternMapping)]
-
-
-class LookerCommonConfig(DatasetSourceConfigBase):
-    explore_naming_pattern: LookerNamingPattern = pydantic.Field(
-        description=f"Pattern for providing dataset names to explores. {LookerNamingPattern.allowed_docstring()}",
-        default=LookerNamingPattern(pattern="{model}.explore.{name}"),
-    )
-    explore_browse_pattern: LookerNamingPattern = pydantic.Field(
-        description=f"Pattern for providing browse paths to explores. {LookerNamingPattern.allowed_docstring()}",
-        default=LookerNamingPattern(pattern="/{env}/{platform}/{project}/explores"),
-    )
-    view_naming_pattern: LookerNamingPattern = Field(
-        LookerNamingPattern(pattern="{project}.view.{name}"),
-        description=f"Pattern for providing dataset names to views. {LookerNamingPattern.allowed_docstring()}",
-    )
-    view_browse_pattern: LookerNamingPattern = Field(
-        LookerNamingPattern(pattern="/{env}/{platform}/{project}/views"),
-        description=f"Pattern for providing browse paths to views. {LookerNamingPattern.allowed_docstring()}",
-    )
-    tag_measures_and_dimensions: bool = Field(
-        True,
-        description="When enabled, attaches tags to measures, dimensions and dimension groups to make them more discoverable. When disabled, adds this information to the description of the column.",
-    )
-    platform_name: str = Field(
-        "looker", description="Default platform name. Don't change."
-    )
-    extract_column_level_lineage: bool = Field(
-        True,
-        description="When enabled, extracts column-level lineage from Views and Explores",
-    )
-
-
 @dataclass
 class LookerViewId:
     project_name: str
     model_name: str
     view_name: str
+    file_path: str
 
-    def get_mapping(self, config: LookerCommonConfig) -> NamingPatternMapping:
-        return NamingPatternMapping(
+    def get_mapping(self, config: LookerCommonConfig) -> ViewNamingPatternMapping:
+        return ViewNamingPatternMapping(
             platform=config.platform_name,
             env=config.env.lower(),
             project=self.project_name,
             model=self.model_name,
             name=self.view_name,
+            file_path=self.file_path,
         )
 
     @validator("view_name")
@@ -211,10 +125,35 @@ class LookerViewId:
         v = v.replace('"', "").replace("`", "")
         return v
 
+    def preprocess_file_path(self, file_path: str) -> str:
+        new_file_path: str = str(file_path)
+
+        str_to_remove: List[str] = [
+            "\\.view\\.lkml$",  # escape the . using \
+        ]
+
+        for pattern in str_to_remove:
+            new_file_path = re.sub(pattern, "", new_file_path)
+
+        str_to_replace: Dict[str, str] = {
+            f"^imported_projects/{re.escape(self.project_name)}/": "",  # escape any special regex character present in project-name
+            "/": ".",  # / is not urn friendly
+        }
+
+        for pattern in str_to_replace:
+            new_file_path = re.sub(pattern, str_to_replace[pattern], new_file_path)
+
+        logger.debug(f"Original file path {file_path}")
+        logger.debug(f"After preprocessing file path {new_file_path}")
+
+        return new_file_path
+
     def get_urn(self, config: LookerCommonConfig) -> str:
-        dataset_name = config.view_naming_pattern.replace_variables(
-            self.get_mapping(config)
-        )
+        n_mapping: ViewNamingPatternMapping = self.get_mapping(config)
+
+        n_mapping.file_path = self.preprocess_file_path(n_mapping.file_path)
+
+        dataset_name = config.view_naming_pattern.replace_variables(n_mapping)
 
         return builder.make_dataset_urn_with_platform_instance(
             platform=config.platform_name,
@@ -237,6 +176,10 @@ class ViewFieldType(Enum):
     UNKNOWN = "Unknown"
 
 
+class ViewFieldValue(Enum):
+    NOT_AVAILABLE = "NotAvailable"
+
+
 @dataclass
 class ViewField:
     name: str
@@ -244,8 +187,86 @@ class ViewField:
     type: str
     description: str
     field_type: ViewFieldType
+    project_name: Optional[str] = None
+    view_name: Optional[str] = None
     is_primary_key: bool = False
     upstream_fields: List[str] = dataclasses_field(default_factory=list)
+
+
+def create_view_project_map(view_fields: List[ViewField]) -> Dict[str, str]:
+    """
+    Each view in a model has unique name.
+    Use this function in scope of a model.
+    """
+    view_project_map: Dict[str, str] = {}
+    for view_field in view_fields:
+        if view_field.view_name is not None and view_field.project_name is not None:
+            view_project_map[view_field.view_name] = view_field.project_name
+
+    return view_project_map
+
+
+def get_view_file_path(
+    lkml_fields: List[LookmlModelExploreField], view_name: str
+) -> Optional[str]:
+    """
+    Search for the view file path on field, if found then return the file path
+    """
+    logger.debug("Entered")
+
+    for field in lkml_fields:
+        if field.view == view_name:
+            # This path is relative to git clone directory
+            logger.debug(f"Found view({view_name}) file-path {field.source_file}")
+            return field.source_file
+
+    logger.debug(f"Failed to find view({view_name}) file-path")
+
+    return None
+
+
+def create_upstream_views_file_path_map(
+    view_names: Set[str], lkml_fields: List[LookmlModelExploreField]
+) -> Dict[str, Optional[str]]:
+    """
+    Create a map of view-name v/s view file path, so that later we can fetch view's file path via view-name
+    """
+
+    upstream_views_file_path: Dict[str, Optional[str]] = {}
+
+    for view_name in view_names:
+        file_path: Optional[str] = get_view_file_path(
+            lkml_fields=lkml_fields, view_name=view_name
+        )
+
+        upstream_views_file_path[view_name] = file_path
+
+    return upstream_views_file_path
+
+
+def explore_field_set_to_lkml_fields(
+    explore: LookmlModelExplore,
+) -> List[LookmlModelExploreField]:
+    """
+    explore.fields has three variables i.e. dimensions, measures, parameters of same type i.e. LookmlModelExploreField.
+    This method creating a list by adding all field instance to lkml_fields
+    """
+    lkml_fields: List[LookmlModelExploreField] = []
+
+    if explore.fields is None:
+        logger.debug(f"Explore({explore.name}) doesn't have any field")
+        return lkml_fields
+
+    def empty_list(
+        fields: Optional[Sequence[LookmlModelExploreField]],
+    ) -> List[LookmlModelExploreField]:
+        return list(fields) if fields is not None else []
+
+    lkml_fields.extend(empty_list(explore.fields.dimensions))
+    lkml_fields.extend(empty_list(explore.fields.measures))
+    lkml_fields.extend(empty_list(explore.fields.parameters))
+
+    return lkml_fields
 
 
 class LookerUtil:
@@ -325,6 +346,37 @@ class LookerUtil:
         return field.split(".")[0]
 
     @staticmethod
+    def extract_view_name_from_lookml_model_explore_field(
+        field: LookmlModelExploreField,
+    ) -> Optional[str]:
+        """
+        View name is either present in original_view or view property
+        """
+        if field.original_view is not None:
+            return field.original_view
+
+        return field.view
+
+    @staticmethod
+    def extract_project_name_from_source_file(
+        source_file: Optional[str],
+    ) -> Optional[str]:
+        """
+        source_file is a key inside explore.fields. This key point to relative path of included views.
+        if view is included from another project then source_file is starts with "imported_projects".
+        Example: imported_projects/datahub-demo/views/datahub-demo/datasets/faa_flights.view.lkml
+        """
+        if source_file is None:
+            return None
+
+        if source_file.startswith(IMPORTED_PROJECTS):
+            tokens: List[str] = source_file.split("/")
+            if len(tokens) >= 2:
+                return tokens[1]  # second index is project-name
+
+        return None
+
+    @staticmethod
     def _get_field_type(
         native_type: str, reporter: SourceReport
     ) -> SchemaFieldDataType:
@@ -336,7 +388,7 @@ class LookerUtil:
 
         # if still not found, log and continue
         if type_class is None:
-            logger.info(
+            logger.debug(
                 f"The type '{native_type}' is not recognized for field type, setting as NullTypeClass.",
             )
             type_class = NullTypeClass
@@ -398,17 +450,9 @@ class LookerUtil:
     @staticmethod
     def _get_tag_mce_for_urn(tag_urn: str) -> MetadataChangeEvent:
         assert tag_urn in LookerUtil.tag_definitions
-        ownership = OwnershipClass(
-            owners=[
-                OwnerClass(
-                    owner="urn:li:corpuser:datahub",
-                    type=OwnershipTypeClass.DATAOWNER,
-                )
-            ]
-        )
         return MetadataChangeEvent(
             proposedSnapshot=TagSnapshotClass(
-                urn=tag_urn, aspects=[ownership, LookerUtil.tag_definitions[tag_urn]]
+                urn=tag_urn, aspects=[LookerUtil.tag_definitions[tag_urn]]
             )
         )
 
@@ -513,6 +557,9 @@ class LookerExplore:
     upstream_views: Optional[
         List[ProjectInclude]
     ] = None  # captures the view name(s) this explore is derived from
+    upstream_views_file_path: Dict[str, Optional[str]] = dataclasses_field(
+        default_factory=dict
+    )  # view_name is key and file_path is value. A single file may contains multiple views
     joins: Optional[List[str]] = None
     fields: Optional[List[ViewField]] = None  # the fields exposed in this explore
     source_file: Optional[str] = None
@@ -536,11 +583,17 @@ class LookerExplore:
         resolved_includes: List[ProjectInclude],
         looker_viewfile_loader: "LookerViewFileLoader",
         reporter: "LookMLSourceReport",
+        model_explores_map: Dict[str, dict],
     ) -> "LookerExplore":
-        view_names = set()
+        view_names: Set[str] = set()
         joins = None
-        # always add the explore's name or the name from the from clause as the view on which this explore is built
-        view_names.add(dict.get("from", dict.get("name")))
+        assert "name" in dict, "Explore doesn't have a name field, this isn't allowed"
+
+        # The view name that the explore refers to is resolved in the following order of priority:
+        # 1. view_name: https://cloud.google.com/looker/docs/reference/param-explore-view-name
+        # 2. from: https://cloud.google.com/looker/docs/reference/param-explore-from
+        # 3. default to the name of the explore
+        view_names.add(dict.get("view_name") or dict.get("from") or dict["name"])
 
         if dict.get("joins", {}) != {}:
             # additionally for join-based explores, pull in the linked views
@@ -559,23 +612,47 @@ class LookerExplore:
             _find_view_from_resolved_includes,
         )
 
-        upstream_views = []
-        for view_name in view_names:
-            info = _find_view_from_resolved_includes(
-                None,
-                resolved_includes,
-                looker_viewfile_loader,
-                view_name,
-                reporter,
+        upstream_views: List[ProjectInclude] = []
+        # create the list of extended explores
+        extends = list(
+            itertools.chain.from_iterable(
+                dict.get("extends", dict.get("extends__all", []))
             )
-            if not info:
-                logger.warning(
-                    f'Could not resolve view {view_name} for explore {dict["name"]} in model {model_name}'
+        )
+        if extends:
+            for extended_explore in extends:
+                if extended_explore in model_explores_map:
+                    parsed_explore = LookerExplore.from_dict(
+                        model_name,
+                        model_explores_map[extended_explore],
+                        resolved_includes,
+                        looker_viewfile_loader,
+                        reporter,
+                        model_explores_map,
+                    )
+                    upstream_views.extend(parsed_explore.upstream_views or [])
+                else:
+                    logger.warning(
+                        f'Could not find extended explore {extended_explore} for explore {dict["name"]} in model {model_name}'
+                    )
+        else:
+            # we only fallback to the view_names list if this is not an extended explore
+            for view_name in view_names:
+                info = _find_view_from_resolved_includes(
+                    None,
+                    resolved_includes,
+                    looker_viewfile_loader,
+                    view_name,
+                    reporter,
                 )
-            else:
-                upstream_views.append(
-                    ProjectInclude(project=info[0].project, include=view_name)
-                )
+                if not info:
+                    logger.warning(
+                        f'Could not resolve view {view_name} for explore {dict["name"]} in model {model_name}'
+                    )
+                else:
+                    upstream_views.append(
+                        ProjectInclude(project=info[0].project, include=view_name)
+                    )
 
         return LookerExplore(
             model_name=model_name,
@@ -584,6 +661,9 @@ class LookerExplore:
             description=dict.get("description"),
             upstream_views=upstream_views,
             joins=joins,
+            # This method is getting called from lookml_source's get_internal_workunits method
+            # & upstream_views_file_path is not in use in that code flow
+            upstream_views_file_path={},
         )
 
     @classmethod  # noqa: C901
@@ -593,12 +673,17 @@ class LookerExplore:
         explore_name: str,
         client: LookerAPI,
         reporter: SourceReport,
+        source_config: LookerDashboardSourceConfig,
     ) -> Optional["LookerExplore"]:  # noqa: C901
         from datahub.ingestion.source.looker.lookml_source import _BASE_PROJECT_NAME
 
         try:
             explore = client.lookml_model_explore(model, explore_name)
             views: Set[str] = set()
+
+            lkml_fields: List[
+                LookmlModelExploreField
+            ] = explore_field_set_to_lkml_fields(explore)
 
             if explore.view_name is not None and explore.view_name != explore.name:
                 # explore is not named after a view and is instead using a from field, which is modeled as view_name.
@@ -665,6 +750,12 @@ class LookerExplore:
                                     field_type=ViewFieldType.DIMENSION_GROUP
                                     if dim_field.dimension_group is not None
                                     else ViewFieldType.DIMENSION,
+                                    project_name=LookerUtil.extract_project_name_from_source_file(
+                                        dim_field.source_file
+                                    ),
+                                    view_name=LookerUtil.extract_view_name_from_lookml_model_explore_field(
+                                        dim_field
+                                    ),
                                     is_primary_key=dim_field.primary_key
                                     if dim_field.primary_key
                                     else False,
@@ -687,12 +778,31 @@ class LookerExplore:
                                     if measure_field.type is not None
                                     else "",
                                     field_type=ViewFieldType.MEASURE,
+                                    project_name=LookerUtil.extract_project_name_from_source_file(
+                                        measure_field.source_file
+                                    ),
+                                    view_name=LookerUtil.extract_view_name_from_lookml_model_explore_field(
+                                        measure_field
+                                    ),
                                     is_primary_key=measure_field.primary_key
                                     if measure_field.primary_key
                                     else False,
                                     upstream_fields=[measure_field.name],
                                 )
                             )
+
+            view_project_map: Dict[str, str] = create_view_project_map(view_fields)
+            if view_project_map:
+                logger.debug(f"views and their projects: {view_project_map}")
+
+            upstream_views_file_path: Dict[
+                str, Optional[str]
+            ] = create_upstream_views_file_path_map(
+                lkml_fields=lkml_fields,
+                view_names=views,
+            )
+            if upstream_views_file_path:
+                logger.debug(f"views and their file-paths: {upstream_views_file_path}")
 
             return cls(
                 name=explore_name,
@@ -703,11 +813,12 @@ class LookerExplore:
                 fields=view_fields,
                 upstream_views=list(
                     ProjectInclude(
-                        project=_BASE_PROJECT_NAME,
+                        project=view_project_map.get(view_name, _BASE_PROJECT_NAME),
                         include=view_name,
                     )
                     for view_name in views
                 ),
+                upstream_views_file_path=upstream_views_file_path,
                 source_file=explore.source_file,
             )
         except SDKError as e:
@@ -717,7 +828,7 @@ class LookerExplore:
                 )
             else:
                 logger.warning(
-                    f"Failed to extract explore {explore_name} from model {model}.", e
+                    f"Failed to extract explore {explore_name} from model {model}: {e}"
                 )
 
         except AssertionError:
@@ -798,19 +909,32 @@ class LookerExplore:
         if self.upstream_views is not None:
             assert self.project_name is not None
             upstreams = []
+            observed_lineage_ts = datetime.datetime.now(tz=datetime.timezone.utc)
             for view_ref in sorted(self.upstream_views):
+                # set file_path to ViewFieldType.UNKNOWN if file_path is not available to keep backward compatibility
+                # if we raise error on file_path equal to None then existing test-cases will fail as mock data doesn't have required attributes.
+                file_path: str = (
+                    cast(str, self.upstream_views_file_path[view_ref.include])
+                    if self.upstream_views_file_path[view_ref.include] is not None
+                    else ViewFieldValue.NOT_AVAILABLE.value
+                )
                 view_urn = LookerViewId(
                     project_name=view_ref.project
                     if view_ref.project != _BASE_PROJECT_NAME
                     else self.project_name,
                     model_name=self.model_name,
                     view_name=view_ref.include,
+                    file_path=file_path,
                 ).get_urn(config)
 
                 upstreams.append(
                     UpstreamClass(
                         dataset=view_urn,
                         type=DatasetLineageTypeClass.VIEW,
+                        auditStamp=AuditStamp(
+                            time=int(observed_lineage_ts.timestamp() * 1000),
+                            actor=CORPUSER_DATAHUB,
+                        ),
                     )
                 )
                 view_name_to_urn_map[view_ref.include] = view_urn
@@ -859,11 +983,8 @@ class LookerExplore:
 
         mce = MetadataChangeEvent(proposedSnapshot=dataset_snapshot)
         mcp = MetadataChangeProposalWrapper(
-            entityType="dataset",
-            changeType=ChangeTypeClass.UPSERT,
             entityUrn=dataset_snapshot.urn,
-            aspectName="subTypes",
-            aspect=SubTypesClass(typeNames=["explore"]),
+            aspect=SubTypesClass(typeNames=[DatasetSubTypes.LOOKER_EXPLORE]),
         )
 
         proposals: List[Union[MetadataChangeEvent, MetadataChangeProposalWrapper]] = [
@@ -888,17 +1009,20 @@ class LookerExploreRegistry:
         self,
         looker_api: LookerAPI,
         report: SourceReport,
+        source_config: LookerDashboardSourceConfig,
     ):
         self.client = looker_api
         self.report = report
+        self.source_config = source_config
 
-    @lru_cache()
+    @lru_cache(maxsize=200)
     def get_explore(self, model: str, explore: str) -> Optional[LookerExplore]:
         looker_explore = LookerExplore.from_api(
             model,
             explore,
             self.client,
             self.report,
+            self.source_config,
         )
         return looker_explore
 
@@ -935,6 +1059,7 @@ class LookerDashboardSourceReport(StaleEntityRemovalSourceReport):
     dashboards_scanned_for_usage: int = 0
     charts_scanned_for_usage: int = 0
     charts_with_activity: LossySet[str] = dataclasses_field(default_factory=LossySet)
+    accessed_dashboards: int = 0
     dashboards_with_activity: LossySet[str] = dataclasses_field(
         default_factory=LossySet
     )
@@ -942,6 +1067,10 @@ class LookerDashboardSourceReport(StaleEntityRemovalSourceReport):
     _looker_explore_registry: Optional[LookerExploreRegistry] = None
     total_explores: int = 0
     explores_scanned: int = 0
+
+    resolved_user_ids: int = 0
+    email_ids_missing: int = 0  # resolved users with missing email addresses
+
     _looker_api: Optional[LookerAPI] = None
     query_latency: Dict[str, datetime.timedelta] = dataclasses_field(
         default_factory=dict
@@ -997,6 +1126,14 @@ class LookerDashboardSourceReport(StaleEntityRemovalSourceReport):
         if self.stage_latency[-1].name == stage_name:
             self.stage_latency[-1].end_time = datetime.datetime.now()
 
+    @contextmanager
+    def report_stage(self, stage_name: str) -> Iterator[None]:
+        try:
+            self.report_stage_start(stage_name)
+            yield
+        finally:
+            self.report_stage_end(stage_name)
+
     def compute_stats(self) -> None:
         if self.total_dashboards:
             self.dashboard_process_percentage_completion = round(
@@ -1017,7 +1154,7 @@ class LookerDashboardSourceReport(StaleEntityRemovalSourceReport):
 
 @dataclass
 class LookerUser:
-    id: int
+    id: str
     email: Optional[str]
     display_name: Optional[str]
     first_name: Optional[str]
@@ -1035,12 +1172,13 @@ class LookerUser:
         )
 
     def get_urn(self, strip_user_ids_from_email: bool) -> Optional[str]:
-        if self.email is None:
+        user = self.email
+        if user and strip_user_ids_from_email:
+            user = user.split("@")[0]
+
+        if not user:
             return None
-        if strip_user_ids_from_email:
-            return builder.make_user_urn(self.email.split("@")[0])
-        else:
-            return builder.make_user_urn(self.email)
+        return builder.make_user_urn(user)
 
 
 @dataclass
@@ -1061,6 +1199,7 @@ class LookerDashboardElement:
     type: Optional[str] = None
     description: Optional[str] = None
     input_fields: Optional[List[InputFieldElement]] = None
+    folder_path: Optional[str] = None  # for independent looks.
 
     def url(self, base_url: str) -> str:
         # A dashboard element can use a look or just a raw query against an explore
@@ -1135,11 +1274,14 @@ class LookerUserRegistry:
     def __init__(self, looker_api: LookerAPI):
         self.looker_api_wrapper = looker_api
 
-    def get_by_id(self, id_: int) -> Optional[LookerUser]:
+    def get_by_id(self, id_: str) -> Optional[LookerUser]:
+        if not id_:
+            return None
+
         logger.debug(f"Will get user {id_}")
 
         raw_user: Optional[User] = self.looker_api_wrapper.get_user(
-            id_, user_fields=self.fields
+            str(id_), user_fields=self.fields
         )
         if raw_user is None:
             return None

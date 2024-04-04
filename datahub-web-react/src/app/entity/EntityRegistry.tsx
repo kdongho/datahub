@@ -1,8 +1,12 @@
-import { Entity as EntityInterface, EntityType, SearchResult } from '../../types.generated';
+import { QueryHookOptions, QueryResult } from '@apollo/client';
+import React from 'react';
+import { Entity as EntityInterface, EntityType, Exact, SearchResult } from '../../types.generated';
 import { FetchedEntity } from '../lineage/types';
+import { SearchResultProvider } from '../search/context/SearchResultContext';
 import { Entity, EntityCapabilityType, IconStyleType, PreviewType } from './Entity';
-import { GenericEntityProperties } from './shared/types';
-import { dictToQueryStringParams, urlEncodeUrn } from './shared/utils';
+import { GLOSSARY_ENTITY_TYPES } from './shared/constants';
+import { EntitySidebarSection, GenericEntityProperties } from './shared/types';
+import { dictToQueryStringParams, getFineGrainedLineageWithSiblings, urlEncodeUrn } from './shared/utils';
 
 function validatedGet<K, V>(key: K, map: Map<K, V>): V {
     if (map.has(key)) {
@@ -34,8 +38,26 @@ export default class EntityRegistry {
         return validatedGet(type, this.entityTypeToEntity);
     }
 
+    hasEntity(type: EntityType): boolean {
+        return this.entityTypeToEntity.has(type);
+    }
+
     getEntities(): Array<Entity<any>> {
         return this.entities;
+    }
+
+    getEntitiesForSearchRoutes(): Array<Entity<any>> {
+        return this.entities.filter(
+            (entity) => !GLOSSARY_ENTITY_TYPES.includes(entity.type) && entity.type !== EntityType.Domain,
+        );
+    }
+
+    getNonGlossaryEntities(): Array<Entity<any>> {
+        return this.entities.filter((entity) => !GLOSSARY_ENTITY_TYPES.includes(entity.type));
+    }
+
+    getGlossaryEntities(): Array<Entity<any>> {
+        return this.entities.filter((entity) => GLOSSARY_ENTITY_TYPES.includes(entity.type));
     }
 
     getSearchEntityTypes(): Array<EntityType> {
@@ -54,9 +76,9 @@ export default class EntityRegistry {
         return this.entities.filter((entity) => entity.isLineageEnabled()).map((entity) => entity.type);
     }
 
-    getIcon(type: EntityType, fontSize: number, styleType: IconStyleType): JSX.Element {
+    getIcon(type: EntityType, fontSize: number, styleType: IconStyleType, color?: string): JSX.Element {
         const entity = validatedGet(type, this.entityTypeToEntity);
-        return entity.icon(fontSize, styleType);
+        return entity.icon(fontSize, styleType, color);
     }
 
     getCollectionName(type: EntityType): string {
@@ -94,6 +116,25 @@ export default class EntityRegistry {
         }
     }
 
+    getEntityQuery(type: EntityType):
+        | ((
+              baseOptions: QueryHookOptions<
+                  any,
+                  Exact<{
+                      urn: string;
+                  }>
+              >,
+          ) => QueryResult<
+              any,
+              Exact<{
+                  urn: string;
+              }>
+          >)
+        | undefined {
+        const entity = validatedGet(type, this.entityTypeToEntity);
+        return entity.useEntityQuery;
+    }
+
     renderProfile(type: EntityType, urn: string): JSX.Element {
         const entity = validatedGet(type, this.entityTypeToEntity);
         return entity.renderProfile(urn);
@@ -106,7 +147,9 @@ export default class EntityRegistry {
 
     renderSearchResult(type: EntityType, searchResult: SearchResult): JSX.Element {
         const entity = validatedGet(type, this.entityTypeToEntity);
-        return entity.renderSearch(searchResult);
+        return (
+            <SearchResultProvider searchResult={searchResult}>{entity.renderSearch(searchResult)}</SearchResultProvider>
+        );
     }
 
     renderBrowse<T>(type: EntityType, data: T): JSX.Element {
@@ -123,38 +166,42 @@ export default class EntityRegistry {
     getLineageVizConfig<T>(type: EntityType, data: T): FetchedEntity | undefined {
         const entity = validatedGet(type, this.entityTypeToEntity);
         const genericEntityProperties = this.getGenericEntityProperties(type, data);
+        // combine fineGrainedLineages from this node as well as its siblings
+        const fineGrainedLineages = getFineGrainedLineageWithSiblings(
+            genericEntityProperties,
+            (t: EntityType, d: EntityInterface) => this.getGenericEntityProperties(t, d),
+        );
         return (
             ({
                 ...entity.getLineageVizConfig?.(data),
                 downstreamChildren: genericEntityProperties?.downstream?.relationships
                     ?.filter((relationship) => relationship.entity)
-                    // eslint-disable-next-line @typescript-eslint/dot-notation
-                    ?.filter((relationship) => !relationship.entity?.['status']?.removed)
                     ?.map((relationship) => ({
                         entity: relationship.entity as EntityInterface,
                         type: (relationship.entity as EntityInterface).type,
                     })),
-                downstreamRelationships: genericEntityProperties?.downstream?.relationships
-                    ?.filter((relationship) => relationship.entity)
-                    // eslint-disable-next-line @typescript-eslint/dot-notation
-                    ?.filter((relationship) => !relationship.entity?.['status']?.removed),
-                numDownstreamChildren: genericEntityProperties?.downstream?.total,
+                downstreamRelationships: genericEntityProperties?.downstream?.relationships?.filter(
+                    (relationship) => relationship.entity,
+                ),
+                numDownstreamChildren:
+                    (genericEntityProperties?.downstream?.total || 0) -
+                    (genericEntityProperties?.downstream?.filtered || 0),
                 upstreamChildren: genericEntityProperties?.upstream?.relationships
                     ?.filter((relationship) => relationship.entity)
-                    // eslint-disable-next-line @typescript-eslint/dot-notation
-                    ?.filter((relationship) => !relationship.entity?.['status']?.removed)
                     ?.map((relationship) => ({
                         entity: relationship.entity as EntityInterface,
                         type: (relationship.entity as EntityInterface).type,
                     })),
-                upstreamRelationships: genericEntityProperties?.upstream?.relationships
-                    ?.filter((relationship) => relationship.entity)
-                    // eslint-disable-next-line @typescript-eslint/dot-notation
-                    ?.filter((relationship) => !relationship.entity?.['status']?.removed),
-                numUpstreamChildren: genericEntityProperties?.upstream?.total,
+                upstreamRelationships: genericEntityProperties?.upstream?.relationships?.filter(
+                    (relationship) => relationship.entity,
+                ),
+                numUpstreamChildren:
+                    (genericEntityProperties?.upstream?.total || 0) -
+                    (genericEntityProperties?.upstream?.filtered || 0),
                 status: genericEntityProperties?.status,
                 siblingPlatforms: genericEntityProperties?.siblingPlatforms,
-                fineGrainedLineages: genericEntityProperties?.fineGrainedLineages,
+                fineGrainedLineages,
+                siblings: genericEntityProperties?.siblings,
                 schemaMetadata: genericEntityProperties?.schemaMetadata,
                 inputFields: genericEntityProperties?.inputFields,
                 canEditLineage: genericEntityProperties?.privileges?.canEditLineage,
@@ -165,6 +212,11 @@ export default class EntityRegistry {
     getDisplayName<T>(type: EntityType, data: T): string {
         const entity = validatedGet(type, this.entityTypeToEntity);
         return entity.displayName(data);
+    }
+
+    getSidebarSections(type: EntityType): EntitySidebarSection[] {
+        const entity = validatedGet(type, this.entityTypeToEntity);
+        return entity.getSidebarSections ? entity.getSidebarSections() : [];
     }
 
     getGenericEntityProperties<T>(type: EntityType, data: T): GenericEntityProperties | null {

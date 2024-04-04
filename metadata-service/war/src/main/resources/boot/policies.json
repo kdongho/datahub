@@ -19,14 +19,23 @@
         "GENERATE_PERSONAL_ACCESS_TOKENS",
         "MANAGE_ACCESS_TOKENS",
         "MANAGE_DOMAINS",
+        "MANAGE_GLOBAL_ANNOUNCEMENTS",
         "MANAGE_TESTS",
         "MANAGE_GLOSSARIES",
         "MANAGE_USER_CREDENTIALS",
         "MANAGE_TAGS",
-        "MANAGE_GLOBAL_VIEWS"
+        "MANAGE_GLOBAL_VIEWS",
+        "RESTORE_INDICES_PRIVILEGE",
+        "GET_TIMESERIES_INDEX_SIZES_PRIVILEGE",
+        "TRUNCATE_TIMESERIES_INDEX_PRIVILEGE",
+        "GET_ES_TASK_STATUS_PRIVILEGE",
+        "SET_WRITEABLE_PRIVILEGE",
+        "APPLY_RETENTION_PRIVILEGE",
+        "MANAGE_GLOBAL_OWNERSHIP_TYPES",
+        "GET_ANALYTICS_PRIVILEGE"
       ],
       "displayName":"Root User - All Platform Privileges",
-      "description":"Grants full platform privileges to root datahub super user.",
+      "description":"Grants all platform privileges to root user.",
       "state":"ACTIVE",
       "type":"PLATFORM",
       "editable":false
@@ -46,29 +55,25 @@
       "privileges":[
         "EDIT_ENTITY",
         "VIEW_ENTITY_PAGE",
-        "EDIT_LINEAGE"
+        "EDIT_LINEAGE",
+        "EDIT_ENTITY_ASSERTIONS",
+        "SEARCH_PRIVILEGE",
+        "GET_COUNTS_PRIVILEGE",
+        "GET_TIMESERIES_ASPECT_PRIVILEGE",
+        "GET_ENTITY_PRIVILEGE",
+        "GET_TIMELINE_PRIVILEGE",
+        "PRODUCE_PLATFORM_EVENT_PRIVILEGE",
+        "MANAGE_DATA_PRODUCTS",
+        "MANAGE_GLOBAL_OWNERSHIP_TYPES",
+        "DELETE_ENTITY",
+        "ES_EXPLAIN_QUERY_PRIVILEGE"
       ],
       "displayName":"Root User - Edit and View All Resources",
-      "description":"Grants full edit and view privileges for all resources to root 'datahub' root user.",
+      "description":"Grants all edit and view privileges for all resources to root user.",
       "state":"ACTIVE",
       "type":"METADATA",
       "editable":false
     }
-  },
-  {
-    "urn": "urn:li:dataHubPolicy:2"
-  },
-  {
-    "urn": "urn:li:dataHubPolicy:3"
-  },
-  {
-    "urn": "urn:li:dataHubPolicy:4"
-  },
-  {
-    "urn": "urn:li:dataHubPolicy:5"
-  },
-  {
-    "urn": "urn:li:dataHubPolicy:6"
   },
   {
     "urn": "urn:li:dataHubPolicy:7",
@@ -80,31 +85,15 @@
         "users":[]
       },
       "privileges":[
-        "MANAGE_INGESTION",
-        "MANAGE_SECRETS",
-        "MANAGE_USERS_AND_GROUPS",
         "VIEW_ANALYTICS",
-        "GENERATE_PERSONAL_ACCESS_TOKENS",
-        "MANAGE_DOMAINS",
-        "MANAGE_TESTS",
-        "MANAGE_GLOSSARIES",
-        "MANAGE_TAGS"
+        "GENERATE_PERSONAL_ACCESS_TOKENS"
       ],
-      "displayName":"All Users - All Platform Privileges (EXCEPT MANAGE POLICIES)",
-      "description":"Grants full platform privileges to ALL users of DataHub. Change this policy to alter that behavior.",
+      "displayName":"All Users - Base Platform Privileges",
+      "description":"Grants base platform privileges to ALL users of DataHub. Change this policy to alter that behavior.",
       "state":"ACTIVE",
       "type":"PLATFORM",
       "editable":true
     }
-  },
-  {
-    "urn": "urn:li:dataHubPolicy:8"
-  },
-  {
-    "urn": "urn:li:dataHubPolicy:9"
-  },
-  {
-    "urn": "urn:li:dataHubPolicy:10"
   },
   {
     "urn": "urn:li:dataHubPolicy:view-entity-page-all",
@@ -116,7 +105,13 @@
         "users":[]
       },
       "privileges":[
-        "VIEW_ENTITY_PAGE"
+        "VIEW_ENTITY_PAGE",
+        "SEARCH_PRIVILEGE",
+        "GET_COUNTS_PRIVILEGE",
+        "GET_TIMESERIES_ASPECT_PRIVILEGE",
+        "GET_ENTITY_PRIVILEGE",
+        "GET_TIMELINE_PRIVILEGE",
+        "ES_EXPLAIN_QUERY_PRIVILEGE"
       ],
       "displayName":"All Users - View Entity Page",
       "description":"Grants entity view to all users",
@@ -167,10 +162,20 @@
         "GENERATE_PERSONAL_ACCESS_TOKENS",
         "MANAGE_ACCESS_TOKENS",
         "MANAGE_DOMAINS",
+        "MANAGE_GLOBAL_ANNOUNCEMENTS",
+        "MANAGE_TESTS",
         "MANAGE_GLOSSARIES",
         "MANAGE_USER_CREDENTIALS",
         "MANAGE_TAGS",
-        "MANAGE_GLOBAL_VIEWS"
+        "MANAGE_GLOBAL_VIEWS",
+        "RESTORE_INDICES_PRIVILEGE",
+        "GET_TIMESERIES_INDEX_SIZES_PRIVILEGE",
+        "TRUNCATE_TIMESERIES_INDEX_PRIVILEGE",
+        "GET_ES_TASK_STATUS_PRIVILEGE",
+        "SET_WRITEABLE_PRIVILEGE",
+        "APPLY_RETENTION_PRIVILEGE",
+        "MANAGE_GLOBAL_OWNERSHIP_TYPES",
+        "GET_ANALYTICS_PRIVILEGE"
       ],
       "displayName":"Admins - Platform Policy",
       "description":"Admins have all platform privileges.",
@@ -201,8 +206,10 @@
         "EDIT_ENTITY_DOC_LINKS",
         "EDIT_ENTITY_STATUS",
         "EDIT_DOMAINS_PRIVILEGE",
+        "EDIT_ENTITY_DATA_PRODUCTS",
         "EDIT_DEPRECATION_PRIVILEGE",
         "EDIT_ENTITY_ASSERTIONS",
+        "EDIT_ENTITY_INCIDENTS",
         "EDIT_ENTITY",
         "EDIT_DATASET_COL_TAGS",
         "EDIT_DATASET_COL_GLOSSARY_TERMS",
@@ -213,13 +220,19 @@
         "EDIT_GROUP_MEMBERS",
         "EDIT_USER_PROFILE",
         "EDIT_CONTACT_INFO",
-        "MANAGE_ENTITY_TAGS_PRIVILEGE",
-        "MANAGE_ENTITY_GLOSSARY_TERMS_PRIVILEGE",
-        "MANAGE_DATASET_COL_GLOSSARY_TERMS_PRIVILEGE",
-        "MANAGE_DATASET_COL_TAGS_PRIVILEGE",
-        "EDIT_ENTITY_ASSERTIONS_PRIVILEGE",
-        "EDIT_LINEAGE"
-
+        "EDIT_LINEAGE",
+        "EDIT_ENTITY_QUERIES",
+        "SEARCH_PRIVILEGE",
+        "GET_COUNTS_PRIVILEGE",
+        "GET_TIMESERIES_ASPECT_PRIVILEGE",
+        "GET_ENTITY_PRIVILEGE",
+        "GET_TIMELINE_PRIVILEGE",
+        "PRODUCE_PLATFORM_EVENT_PRIVILEGE",
+        "MANAGE_DATA_PRODUCTS",
+        "CREATE_ER_MODEL_RELATIONSHIP_PRIVILEGE",
+        "DELETE_ENTITY",
+        "ES_EXPLAIN_QUERY_PRIVILEGE",
+        "EDIT_ENTITY_PROPERTIES"
       ],
       "displayName":"Admins - Metadata Policy",
       "description":"Admins have all metadata privileges.",
@@ -244,6 +257,7 @@
       "privileges":[
         "GENERATE_PERSONAL_ACCESS_TOKENS",
         "MANAGE_DOMAINS",
+        "MANAGE_GLOBAL_ANNOUNCEMENTS",
         "MANAGE_GLOSSARIES",
         "MANAGE_TAGS"
       ],
@@ -271,35 +285,85 @@
         "VIEW_ENTITY_PAGE",
         "EDIT_ENTITY_TAGS",
         "EDIT_ENTITY_GLOSSARY_TERMS",
-        "EDIT_ENTITY_OWNERS",
         "EDIT_ENTITY_DOCS",
         "EDIT_ENTITY_DOC_LINKS",
         "EDIT_ENTITY_STATUS",
         "EDIT_DOMAINS_PRIVILEGE",
+        "EDIT_ENTITY_DATA_PRODUCTS",
         "EDIT_DEPRECATION_PRIVILEGE",
         "EDIT_ENTITY_ASSERTIONS",
-        "EDIT_ENTITY",
+        "EDIT_ENTITY_INCIDENTS",
         "EDIT_DATASET_COL_TAGS",
         "EDIT_DATASET_COL_GLOSSARY_TERMS",
         "EDIT_DATASET_COL_DESCRIPTION",
         "VIEW_DATASET_USAGE",
         "VIEW_DATASET_PROFILE",
         "EDIT_TAG_COLOR",
-        "EDIT_GROUP_MEMBERS",
-        "EDIT_USER_PROFILE",
-        "EDIT_CONTACT_INFO",
-        "MANAGE_ENTITY_TAGS_PRIVILEGE",
-        "MANAGE_ENTITY_GLOSSARY_TERMS_PRIVILEGE",
-        "MANAGE_DATASET_COL_GLOSSARY_TERMS_PRIVILEGE",
-        "MANAGE_DATASET_COL_TAGS_PRIVILEGE",
-        "EDIT_ENTITY_ASSERTIONS_PRIVILEGE",
-        "EDIT_LINEAGE"
+        "EDIT_LINEAGE",
+        "EDIT_ENTITY_QUERIES",
+        "SEARCH_PRIVILEGE",
+        "GET_COUNTS_PRIVILEGE",
+        "GET_TIMESERIES_ASPECT_PRIVILEGE",
+        "GET_ENTITY_PRIVILEGE",
+        "GET_TIMELINE_PRIVILEGE",
+        "PRODUCE_PLATFORM_EVENT_PRIVILEGE",
+        "MANAGE_DATA_PRODUCTS",
+        "ES_EXPLAIN_QUERY_PRIVILEGE",
+        "EDIT_ENTITY_PROPERTIES"
       ],
       "displayName":"Editors - Metadata Policy",
       "description":"Editors have all metadata privileges.",
       "state":"ACTIVE",
       "type":"METADATA",
       "editable":false
+    }
+  },
+  {
+    "urn": "urn:li:dataHubPolicy:editor-metadata-policy-entities",
+    "info": {
+      "actors":{
+        "resourceOwners":false,
+        "allUsers":false,
+        "allGroups":false,
+        "users":[],
+        "groups":[],
+        "roles":[
+          "urn:li:dataHubRole:Editor"
+        ]
+      },
+      "resources": {
+        "allResources": false,
+        "filter": {
+          "criteria": [
+            {
+              "field": "RESOURCE_TYPE",
+              "values": [
+                "dataset",
+                "chart",
+                "dashboard",
+                "dataFlow",
+                "dataJob",
+                "tag",
+                "container",
+                "domain",
+                "glossaryTerm",
+                "glossaryNode",
+                "notebook",
+                "dataProduct"
+              ],
+              "condition": "EQUALS"
+            }
+          ]
+        }
+      },
+      "privileges":[
+        "EDIT_ENTITY"
+      ],
+      "displayName":"Editors - Edit Metadata Entities",
+      "description":"Editors can edit primary metadata entities.",
+      "state":"ACTIVE",
+      "type":"METADATA",
+      "editable":true
     }
   },
   {
@@ -339,7 +403,13 @@
       "privileges":[
         "VIEW_ENTITY_PAGE",
         "VIEW_DATASET_USAGE",
-        "VIEW_DATASET_PROFILE"
+        "VIEW_DATASET_PROFILE",
+        "SEARCH_PRIVILEGE",
+        "GET_COUNTS_PRIVILEGE",
+        "GET_TIMESERIES_ASPECT_PRIVILEGE",
+        "GET_ENTITY_PRIVILEGE",
+        "GET_TIMELINE_PRIVILEGE",
+        "ES_EXPLAIN_QUERY_PRIVILEGE"
       ],
       "displayName":"Readers - Metadata Policy",
       "description":"Readers can view all assets.",
@@ -367,8 +437,10 @@
         "EDIT_ENTITY_DOC_LINKS",
         "EDIT_ENTITY_STATUS",
         "EDIT_DOMAINS_PRIVILEGE",
+        "EDIT_ENTITY_DATA_PRODUCTS",
         "EDIT_DEPRECATION_PRIVILEGE",
         "EDIT_ENTITY_ASSERTIONS",
+        "EDIT_ENTITY_INCIDENTS",
         "EDIT_ENTITY",
         "EDIT_DATASET_COL_TAGS",
         "EDIT_DATASET_COL_GLOSSARY_TERMS",
@@ -379,12 +451,15 @@
         "EDIT_GROUP_MEMBERS",
         "EDIT_USER_PROFILE",
         "EDIT_CONTACT_INFO",
-        "MANAGE_ENTITY_TAGS_PRIVILEGE",
-        "MANAGE_ENTITY_GLOSSARY_TERMS_PRIVILEGE",
-        "MANAGE_DATASET_COL_GLOSSARY_TERMS_PRIVILEGE",
-        "MANAGE_DATASET_COL_TAGS_PRIVILEGE",
-        "EDIT_ENTITY_ASSERTIONS_PRIVILEGE",
-        "EDIT_LINEAGE"
+        "EDIT_LINEAGE",
+        "EDIT_ENTITY_QUERIES",
+        "GET_TIMELINE_PRIVILEGE",
+        "GET_ENTITY_PRIVILEGE",
+        "GET_TIMESERIES_ASPECT_PRIVILEGE",
+        "GET_COUNTS_PRIVILEGE",
+        "MANAGE_DATA_PRODUCTS",
+        "ES_EXPLAIN_QUERY_PRIVILEGE",
+        "EDIT_ENTITY_PROPERTIES"
       ],
       "displayName":"Asset Owners - Metadata Policy",
       "description":"Asset Owners have all metadata privileges ONLY for assets they own.",

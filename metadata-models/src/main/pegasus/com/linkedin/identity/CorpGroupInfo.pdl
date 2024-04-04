@@ -20,7 +20,9 @@ record CorpGroupInfo {
   @Searchable = {
     "fieldType": "TEXT_PARTIAL"
     "queryByDefault": true,
-    "boostScore": 10.0
+    "enableAutocomplete": true,
+    "boostScore": 10.0,
+    "fieldNameAliases": [ "_entityName" ]
   }
   displayName: optional string
 

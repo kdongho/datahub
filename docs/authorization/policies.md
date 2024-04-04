@@ -70,61 +70,78 @@ We currently support the following:
 
 **Platform-level** privileges for DataHub operators to access & manage the administrative functionality of the system.
 
-| Platform Privileges             | Description                                                                                                                    |
-|---------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| Manage Policies                 | Allow actor to create and remove access control policies. Be careful - Actors with this privilege are effectively super users. |
-| Manage Metadata Ingestion       | Allow actor to create, remove, and update Metadata Ingestion sources.                                                          |
-| Manage Secrets                  | Allow actor to create & remove secrets stored inside DataHub.                                                                  |
-| Manage Users & Groups           | Allow actor to create, remove, and update users and groups on DataHub.                                                          |
-| Manage All Access Tokens        | Allow actor to create, remove, and list access tokens for all users on DataHub.                                                |
-| Create Domains                  | Allow the actor to create new Domains                                                                                          |
-| Manage Domains                  | Allow actor to create and remove any Domains.                                                                                |
-| View Analytics                  | Allow the actor access to the DataHub analytics dashboard.                                                                      |
-| Generate Personal Access Tokens | Allow the actor to generate access tokens for personal use with DataHub APIs.                                                  |
-| Manage User Credentials         | Allow the actor to generate invite links for new native DataHub users, and password reset links for existing native users.   |
-| Manage Glossaries               | Allow the actor to create, edit, move, and delete Glossary Terms and Term Groups                                               |
-| Create Tags                     | Allow the actor to create new Tags                                                                                             |
-| Manage Tags                     | Allow the actor to create and remove any Tags                                                                                  |
+| Platform Privileges                 | Description                                                                                                                    |
+|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| Manage Policies                     | Allow actor to create and remove access control policies. Be careful - Actors with this privilege are effectively super users. |
+| Manage Metadata Ingestion           | Allow actor to create, remove, and update Metadata Ingestion sources.                                                          |
+| Manage Secrets                      | Allow actor to create & remove secrets stored inside DataHub.                                                                  |
+| Manage Users & Groups               | Allow actor to create, remove, and update users and groups on DataHub.                                                         |
+| Manage All Access Tokens            | Allow actor to create, remove, and list access tokens for all users on DataHub.                                                |
+| Create Domains                      | Allow the actor to create new Domains                                                                                          |
+| Manage Domains                      | Allow actor to create and remove any Domains.                                                                                  |
+| View Analytics                      | Allow the actor access to the DataHub analytics dashboard.                                                                     |
+| Generate Personal Access Tokens     | Allow the actor to generate access tokens for personal use with DataHub APIs.                                                  |
+| Manage User Credentials             | Allow the actor to generate invite links for new native DataHub users, and password reset links for existing native users.     |
+| Manage Glossaries                   | Allow the actor to create, edit, move, and delete Glossary Terms and Term Groups                                               |
+| Create Tags                         | Allow the actor to create new Tags                                                                                             |
+| Manage Tags                         | Allow the actor to create and remove any Tags                                                                                  |
+| Manage Public Views                 | Allow the actor to create, edit, and remove any public (shared) Views.                                                         |
+| Restore Indices API[^1]             | Allow the actor to restore indices for a set of entities via API                                                               |
+| Enable/Disable Writeability API[^1] | Allow the actor to enable or disable GMS writeability for use in data migrations                                               |
+| Apply Retention API[^1]             | Allow the actor to apply aspect retention via API                                                                              |
+
+[^1]: Only active if REST_API_AUTHORIZATION_ENABLED is true
 
 **Common metadata privileges** to view & modify any entity within DataHub.
 
-| Common Privileges   | Description                                                                                                                      |
-|---------------------|----------------------------------------------------------------------------------------------------------------------------------|
-| View Entity Page    | Allow actor to access the entity page for the resource in the UI. If not granted, it will redirect them to an unauthorized page. |
-| Edit Tags           | Allow actor to add and remove tags to an asset.                                                                                  |
-| Edit Glossary Terms | Allow actor to add and remove glossary terms to an asset.                                                                        |
-| Edit Owners         | Allow actor to add and remove owners of an entity.                                                                               |
-| Edit Description    | Allow actor to edit the description (documentation) of an entity.                                                                |
-| Edit Links          | Allow actor to edit links associated with an entity.                                                                             |
-| Edit Status         | Allow actor to edit the status of an entity (soft deleted or not).                                                               |
-| Edit Domain         | Allow actor to edit the Domain of an entity.                                                                                     |
-| Edit Deprecation    | Allow actor to edit the Deprecation status of an entity.                                                                         |
-| Edit Assertions     | Allow actor to add and remove assertions from an entity.                                                                         |
-| Edit Lineage        | Allow actor to add and remove upstream and downstream lineage edges.                                                             |
-| Edit All            | Allow actor to edit any information about an entity. Super user privileges.                                                      |
+| Common Privileges                   | Description                                                                                                                                                                                                                                   |
+|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| View Entity Page                    | Allow actor to access the entity page for the resource in the UI. If not granted, it will redirect them to an unauthorized page. Additionally if the actor does not have this view privilege, the entity will be removed from search results. |
+| Edit Tags                           | Allow actor to add and remove tags to an asset.                                                                                                                                                                                               |
+| Edit Glossary Terms                 | Allow actor to add and remove glossary terms to an asset.                                                                                                                                                                                     |
+| Edit Owners                         | Allow actor to add and remove owners of an entity.                                                                                                                                                                                            |
+| Edit Description                    | Allow actor to edit the description (documentation) of an entity.                                                                                                                                                                             |
+| Edit Links                          | Allow actor to edit links associated with an entity.                                                                                                                                                                                          |
+| Edit Status                         | Allow actor to edit the status of an entity (soft deleted or not).                                                                                                                                                                            |
+| Edit Domain                         | Allow actor to edit the Domain of an entity.                                                                                                                                                                                                  |
+| Edit Deprecation                    | Allow actor to edit the Deprecation status of an entity.                                                                                                                                                                                      |
+| Edit Assertions                     | Allow actor to add and remove assertions from an entity.                                                                                                                                                                                      |
+| Edit Incidents                      | Allow actor to raise and resolve incidents for an entity.                                                                                                                                                                                     |
+| Edit All                            | Allow actor to edit any information about an entity. Super user privileges. Controls the ability to ingest using API when REST API Authorization is enabled.                                                                                  |
+| Get Timeline API[^1]                | Allow actor to get the timeline of an entity via API.                                                                                                                                                                                         |
+| Get Entity API[^1]                  | Allow actor to get an entity via API.                                                                                                                                                                                                         |
+| Get Timeseries Aspect API[^1]       | Allow actor to get a timeseries aspect via API.                                                                                                                                                                                               |
+| Get Aspect/Entity Count APIs[^1]    | Allow actor to get aspect and entity counts via API.                                                                                                                                                                                          |
+| Search API[^1]                      | Allow actor to search for entities via API.                                                                                                                                                                                                   |
+| Produce Platform Event API[^1]      | Allow actor to ingest a platform event via API.                                                                                                                                                                                               |
+| Explain ElasticSearch Query API[^1] | Allow actor to explain an ElasticSearch query.                                                                                                                                                                                                |
+| Create Entity                       | Allow creation of the entity if it doesn't already exist.                                                                                                                                                                                     |
+| Entity Exists                       | Allow checking the existence of the entity without any additional access to the entity's data.                                                                                                                                                |
+
+[^1]: Only active if REST_API_AUTHORIZATION_ENABLED is true
 
 **Specific entity-level privileges** that are not generalizable.
 
-| Entity       | Privilege                          | Description                                                                                                                                                                |
-|--------------|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Dataset      | Edit Dataset Column Tags           | Allow actor to edit the column (field) tags associated with a dataset schema.                                                                                              |
-| Dataset      | Edit Dataset Column Glossary Terms | Allow actor to edit the column (field) glossary terms associated with a dataset schema.                                                                                    |
-| Dataset      | Edit Dataset Column Descriptions   | Allow actor to edit the column (field) descriptions associated with a dataset schema.                                                                                      |
-| Dataset      | View Dataset Usage                 | Allow actor to access usage metadata about a dataset both in the UI and in the GraphQL API. This includes example queries, number of queries, etc.                         |
-| Dataset      | View Dataset Profile               | Allow actor to access a dataset's profile both in the UI and in the GraphQL API. This   includes snapshot statistics like #rows, #columns, null percentage per field, etc. |
-| Tag          | Edit Tag Color                     | Allow actor to change the color of a Tag.                                                                                                                                  |
-| Group        | Edit Group Members                 | Allow actor to add and remove members to a group.                                                                                                                          |
-| User         | Edit User Profile                  | Allow actor to change the user's profile including display name, bio, title, profile image, etc.                                                                           |
-| User + Group | Edit Contact Information           | Allow actor to change the contact information such as email & chat handles.                                                                                                |
-| GlossaryNode | Manage Direct Glossary Children | Allow the actor to create and delete the direct children of the selected entities.                                                          |
-| GlossaryNode | Manage All Glossary Children    | Allow the actor to create and delete everything underneath the selected entities.                                                          |
+| Entity       | Privilege                          | Description                                                                                                                                                                                                           |
+|--------------|------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Dataset      | Edit Dataset Column Tags           | Allow actor to edit the column (field) tags associated with a dataset schema.                                                                                                                                         |
+| Dataset      | Edit Dataset Column Glossary Terms | Allow actor to edit the column (field) glossary terms associated with a dataset schema.                                                                                                                               |
+| Dataset      | Edit Dataset Column Descriptions   | Allow actor to edit the column (field) descriptions associated with a dataset schema.                                                                                                                                 |
+| Dataset      | View Dataset Usage                 | Allow actor to access usage metadata about a dataset both in the UI and in the GraphQL API. This includes example queries, number of queries, etc. Also applies to REST APIs when REST API Authorization is enabled.  |
+| Dataset      | View Dataset Profile               | Allow actor to access a dataset's profile both in the UI and in the GraphQL API. This   includes snapshot statistics like #rows, #columns, null percentage per field, etc.                                            |
+| Tag          | Edit Tag Color                     | Allow actor to change the color of a Tag.                                                                                                                                                                             |
+| Group        | Edit Group Members                 | Allow actor to add and remove members to a group.                                                                                                                                                                     |
+| User         | Edit User Profile                  | Allow actor to change the user's profile including display name, bio, title, profile image, etc.                                                                                                                      |
+| User + Group | Edit Contact Information           | Allow actor to change the contact information such as email & chat handles.                                                                                                                                           |
+| GlossaryNode | Manage Direct Glossary Children    | Allow the actor to create, edit, and delete the direct children of the selected entities.                                                                                                                             |
+| GlossaryNode | Manage All Glossary Children       | Allow the actor to create, edit, and delete everything underneath the selected entities.                                                                                                                              |
 
 
 
 #### Resources
 
 Resource filter defines the set of resources that the policy applies to is defined using a list of criteria. Each
-criterion defines a field type (like resource_type, resource_urn, domain), a list of field values to compare, and a
+criterion defines a field type (like type, urn, domain), a list of field values to compare, and a
 condition (like EQUALS). It essentially checks whether the field of a certain resource matches any of the input values.
 Note, that if there are no criteria or resource is not set, policy is applied to ALL resources.
 
@@ -132,35 +149,38 @@ For example, the following resource filter will apply the policy to datasets, ch
 
 ```json
 {
-  "resource": {
-    "criteria": [
-      {
-        "field": "resource_type",
-        "values": [
-          "dataset",
-          "chart",
-          "dashboard"
-        ],
-        "condition": "EQUALS"
-      },
-      {
-        "field": "domain",
-        "values": [
-          "urn:li:domain:domain1"
-        ],
-        "condition": "EQUALS"
+    "resources": {
+      "filter": {
+        "criteria": [
+          {
+            "field": "TYPE",
+            "condition": "EQUALS",
+            "values": [
+              "dataset",
+              "chart",
+              "dashboard"
+            ]
+          },
+          {
+            "field": "DOMAIN",
+            "values": [
+              "urn:li:domain:domain1"
+            ],
+            "condition": "EQUALS"
+          }
+        ]
       }
-    ]
-  }
+    }
 }
 ```
+Where `resources` is inside the `info` aspect of a Policy.
 
 Supported fields are as follows
 
 | Field Type    | Description            | Example                 |
 |---------------|------------------------|-------------------------|
-| resource_type | Type of the resource   | dataset, chart, dataJob |
-| resource_urn  | Urn of the resource    | urn:li:dataset:...      |
+| type | Type of the resource   | dataset, chart, dataJob |
+| urn  | Urn of the resource    | urn:li:dataset:...      |
 | domain        | Domain of the resource | urn:li:domain:domainX   |
 
 ## Managing Policies
@@ -201,6 +221,11 @@ to `false`. For example in your `docker/datahub-gms/docker.env`, you'd place
 ```
 AUTH_POLICIES_ENABLED=false
 ```
+
+### REST API Authorization
+
+Policies only affect REST APIs when the environment variable `REST_API_AUTHORIZATION` is set to `true` for GMS. Some policies only apply when this setting is enabled, marked above, and other Metadata and Platform policies apply to the APIs where relevant, also specified in the table above.
+
 
 ## Coming Soon
 

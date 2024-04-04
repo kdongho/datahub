@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import boto3
 from boto3.session import Session
-from botocore.config import Config
+from botocore.config import DEFAULT_TIMEOUT, Config
 from botocore.utils import fix_s3_host
 from pydantic.fields import Field
 
@@ -11,7 +11,7 @@ from datahub.configuration.common import (
     ConfigModel,
     PermissiveConfigModel,
 )
-from datahub.configuration.source_common import EnvBasedSourceConfigBase
+from datahub.configuration.source_common import EnvConfigMixin
 
 if TYPE_CHECKING:
     from mypy_boto3_glue import GlueClient
@@ -34,7 +34,7 @@ class AwsAssumeRoleConfig(PermissiveConfigModel):
 
 def assume_role(
     role: AwsAssumeRoleConfig,
-    aws_region: str,
+    aws_region: Optional[str],
     credentials: Optional[dict] = None,
 ) -> dict:
     credentials = credentials or {}
@@ -59,7 +59,7 @@ def assume_role(
     return dict(assumed_role_object["Credentials"])
 
 
-AUTODETECT_CREDENTIALS_DOC_LINK = "Can be auto-detected, see https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html for details."
+AUTODETECT_CREDENTIALS_DOC_LINK = "Can be auto-detected, see [the AWS boto3 docs](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html) for details."
 
 
 class AwsConnectionConfig(ConfigModel):
@@ -93,15 +93,25 @@ class AwsConnectionConfig(ConfigModel):
         default=None,
         description="Named AWS profile to use. Only used if access key / secret are unset. If not set the default will be used",
     )
-    aws_region: str = Field(description="AWS region code.")
+    aws_region: Optional[str] = Field(None, description="AWS region code.")
 
     aws_endpoint_url: Optional[str] = Field(
         default=None,
-        description="Autodetected. See https://boto3.amazonaws.com/v1/documentation/api/latest/reference/core/session.html",
+        description="The AWS service endpoint. This is normally [constructed automatically](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/core/session.html), but can be overridden here.",
     )
     aws_proxy: Optional[Dict[str, str]] = Field(
         default=None,
-        description="Autodetected. See https://boto3.amazonaws.com/v1/documentation/api/latest/reference/core/session.html",
+        description="A set of proxy configs to use with AWS. See the [botocore.config](https://botocore.amazonaws.com/v1/documentation/api/latest/reference/config.html) docs for details.",
+    )
+
+    read_timeout: float = Field(
+        default=DEFAULT_TIMEOUT,
+        description="The timeout for reading from the connection (in seconds).",
+    )
+
+    aws_advanced_config: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Advanced AWS configuration options. These are passed directly to [botocore.config.Config](https://botocore.amazonaws.com/v1/documentation/api/latest/reference/config.html).",
     )
 
     def _normalized_aws_roles(self) -> List[AwsAssumeRoleConfig]:
@@ -157,7 +167,7 @@ class AwsConnectionConfig(ConfigModel):
 
         return session
 
-    def get_credentials(self) -> Dict[str, str]:
+    def get_credentials(self) -> Dict[str, Optional[str]]:
         credentials = self.get_session().get_credentials()
         if credentials is not None:
             return {
@@ -167,13 +177,20 @@ class AwsConnectionConfig(ConfigModel):
             }
         return {}
 
+    def _aws_config(self) -> Config:
+        return Config(
+            proxies=self.aws_proxy,
+            read_timeout=self.read_timeout,
+            **self.aws_advanced_config,
+        )
+
     def get_s3_client(
         self, verify_ssl: Optional[Union[bool, str]] = None
     ) -> "S3Client":
         return self.get_session().client(
             "s3",
             endpoint_url=self.aws_endpoint_url,
-            config=Config(proxies=self.aws_proxy),
+            config=self._aws_config(),
             verify=verify_ssl,
         )
 
@@ -183,7 +200,7 @@ class AwsConnectionConfig(ConfigModel):
         resource = self.get_session().resource(
             "s3",
             endpoint_url=self.aws_endpoint_url,
-            config=Config(proxies=self.aws_proxy),
+            config=self._aws_config(),
             verify=verify_ssl,
         )
         # according to: https://stackoverflow.com/questions/32618216/override-s3-endpoint-using-boto3-configuration-file
@@ -195,13 +212,13 @@ class AwsConnectionConfig(ConfigModel):
         return resource
 
     def get_glue_client(self) -> "GlueClient":
-        return self.get_session().client("glue")
+        return self.get_session().client("glue", config=self._aws_config())
 
     def get_sagemaker_client(self) -> "SageMakerClient":
-        return self.get_session().client("sagemaker")
+        return self.get_session().client("sagemaker", config=self._aws_config())
 
 
-class AwsSourceConfig(EnvBasedSourceConfigBase, AwsConnectionConfig):
+class AwsSourceConfig(EnvConfigMixin, AwsConnectionConfig):
     """
     Common AWS credentials config.
 

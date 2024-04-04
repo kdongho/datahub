@@ -20,7 +20,7 @@ import {
     HOME_PAGE_MOST_POPULAR_ID,
     HOME_PAGE_PLATFORMS_ID,
 } from '../onboarding/config/HomePageOnboardingConfig';
-import { useUpdateEducationStepIdsAllowlist } from '../onboarding/useUpdateEducationStepIdsAllowlist';
+import { useToggleEducationStepIdsAllowList } from '../onboarding/useToggleEducationStepIdsAllowList';
 
 const PLATFORMS_MODULE_ID = 'Platforms';
 const MOST_POPULAR_MODULE_ID = 'HighUsageEntities';
@@ -95,6 +95,7 @@ const simpleViewEntityTypes = [
     EntityType.Dashboard,
     EntityType.GlossaryNode,
     EntityType.GlossaryTerm,
+    EntityType.DataProduct,
 ];
 
 export const HomePageRecommendations = ({ user }: Props) => {
@@ -146,15 +147,15 @@ export const HomePageRecommendations = ({ user }: Props) => {
 
     // Render domain onboarding step if the domains module exists
     const hasDomains = !!domainRecommendationModule;
-    useUpdateEducationStepIdsAllowlist(hasDomains, HOME_PAGE_DOMAINS_ID);
+    useToggleEducationStepIdsAllowList(hasDomains, HOME_PAGE_DOMAINS_ID);
 
     // Render platforms onboarding step if the platforms module exists
     const hasPlatforms = !!recommendationModules?.some((module) => module?.moduleId === PLATFORMS_MODULE_ID);
-    useUpdateEducationStepIdsAllowlist(hasPlatforms, HOME_PAGE_PLATFORMS_ID);
+    useToggleEducationStepIdsAllowList(hasPlatforms, HOME_PAGE_PLATFORMS_ID);
 
     // Render most popular onboarding step if the most popular module exists
     const hasMostPopular = !!recommendationModules?.some((module) => module?.moduleId === MOST_POPULAR_MODULE_ID);
-    useUpdateEducationStepIdsAllowlist(hasMostPopular, HOME_PAGE_MOST_POPULAR_ID);
+    useToggleEducationStepIdsAllowList(hasMostPopular, HOME_PAGE_MOST_POPULAR_ID);
 
     return (
         <RecommendationsContainer>
@@ -204,11 +205,10 @@ export const HomePageRecommendations = ({ user }: Props) => {
                 recommendationModules
                     .filter((module) => module.renderType !== RecommendationRenderType.DomainSearchList)
                     .map((module) => (
-                        <RecommendationContainer id={getStepId(module.moduleId)}>
+                        <RecommendationContainer id={getStepId(module.moduleId)} key={module.moduleId}>
                             <RecommendationTitle level={4}>{module.title}</RecommendationTitle>
                             <ThinDivider />
                             <RecommendationModule
-                                key={module.moduleId}
                                 module={module as RecommendationModuleType}
                                 scenarioType={scenario}
                                 showTitle={false}

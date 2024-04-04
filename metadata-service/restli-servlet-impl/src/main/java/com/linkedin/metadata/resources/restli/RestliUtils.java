@@ -8,7 +8,6 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-
 public class RestliUtils {
 
   private RestliUtils() {
@@ -16,8 +15,9 @@ public class RestliUtils {
   }
 
   /**
-   * Executes the provided supplier and convert the results to a {@link Task}.
-   * Exceptions thrown during the execution will be properly wrapped in {@link RestLiServiceException}.
+   * Executes the provided supplier and convert the results to a {@link Task}. Exceptions thrown
+   * during the execution will be properly wrapped in {@link RestLiServiceException}.
+   *
    * @param supplier The supplier to execute
    * @return A parseq {@link Task}
    */
@@ -28,7 +28,8 @@ public class RestliUtils {
     } catch (Throwable throwable) {
 
       // Convert IllegalArgumentException to BAD REQUEST
-      if (throwable instanceof IllegalArgumentException || throwable.getCause() instanceof IllegalArgumentException) {
+      if (throwable instanceof IllegalArgumentException
+          || throwable.getCause() instanceof IllegalArgumentException) {
         throwable = badRequestException(throwable.getMessage());
       }
 
@@ -41,8 +42,10 @@ public class RestliUtils {
   }
 
   /**
-   * Similar to {@link #toTask(Supplier)} but the supplier is expected to return an {@link Optional} instead.
-   * A {@link RestLiServiceException} with 404 HTTP status code will be thrown if the optional is emtpy.
+   * Similar to {@link #toTask(Supplier)} but the supplier is expected to return an {@link Optional}
+   * instead. A {@link RestLiServiceException} with 404 HTTP status code will be thrown if the
+   * optional is emtpy.
+   *
    * @param supplier The supplier to execute
    * @return A parseq {@link Task}
    */

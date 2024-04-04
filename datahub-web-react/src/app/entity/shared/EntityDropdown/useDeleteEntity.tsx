@@ -4,6 +4,10 @@ import { EntityType } from '../../../../types.generated';
 import { useEntityRegistry } from '../../../useEntityRegistry';
 import { getDeleteEntityMutation } from '../../../shared/deleteUtils';
 import analytics, { EventType } from '../../../analytics';
+import { useGlossaryEntityData } from '../GlossaryEntityContext';
+import { getParentNodeToUpdate, updateGlossarySidebar } from '../../../glossary/utils';
+import { useHandleDeleteDomain } from './useHandleDeleteDomain';
+import { removeTermFromGlossaryNode } from '../../../glossary/cacheUtils';
 
 /**
  * Performs the flow for deleting an entity of a given type.
@@ -22,9 +26,12 @@ function useDeleteEntity(
 ) {
     const [hasBeenDeleted, setHasBeenDeleted] = useState(false);
     const entityRegistry = useEntityRegistry();
+    const { isInGlossaryContext, urnsToUpdate, setUrnsToUpdate } = useGlossaryEntityData();
+    const { handleDeleteDomain } = useHandleDeleteDomain({ entityData, urn });
 
     const maybeDeleteEntity = getDeleteEntityMutation(type)();
     const deleteEntity = (maybeDeleteEntity && maybeDeleteEntity[0]) || undefined;
+    const client = maybeDeleteEntity?.[1].client;
 
     function handleDeleteEntity() {
         deleteEntity?.({
@@ -44,10 +51,23 @@ function useDeleteEntity(
                         duration: 2,
                     });
                 }
+
+                if (entityData.type === EntityType.Domain) {
+                    handleDeleteDomain();
+                }
+
+                if (client && entityData.type === EntityType.GlossaryTerm && entityData?.parentNodes?.nodes) {
+                    removeTermFromGlossaryNode(client, entityData.parentNodes.nodes[0].urn, urn);
+                }
+
                 setTimeout(
                     () => {
                         setHasBeenDeleted(true);
                         onDelete?.();
+                        if (isInGlossaryContext) {
+                            const parentNodeToUpdate = getParentNodeToUpdate(entityData, type);
+                            updateGlossarySidebar([parentNodeToUpdate], urnsToUpdate, setUrnsToUpdate);
+                        }
                         if (!hideMessage) {
                             message.success({
                                 content: `Deleted ${entityRegistry.getEntityName(type)}!`,

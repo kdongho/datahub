@@ -1,10 +1,11 @@
+import doctest
 import os
 
 import pytest
 from pydantic import SecretStr
 
 from datahub.configuration.common import ConfigurationWarning
-from datahub.configuration.github import GitHubInfo, GitHubReference
+from datahub.configuration.git import GitInfo, GitReference
 from datahub.ingestion.source.git.git_import import GitClone
 
 LOOKML_TEST_SSH_KEY = os.environ.get("DATAHUB_LOOKML_GIT_TEST_SSH_KEY")
@@ -12,13 +13,11 @@ LOOKML_TEST_SSH_KEY = os.environ.get("DATAHUB_LOOKML_GIT_TEST_SSH_KEY")
 
 def test_base_url_guessing():
     # Basic GitHub repo.
-    config = GitHubInfo(
-        repo="https://github.com/datahub-project/datahub", branch="master"
-    )
+    config = GitInfo(repo="https://github.com/datahub-project/datahub", branch="master")
     assert config.repo_ssh_locator == "git@github.com:datahub-project/datahub.git"
 
     # Defaults to GitHub.
-    config = GitHubInfo(repo="datahub-project/datahub", branch="master")
+    config = GitInfo(repo="datahub-project/datahub", branch="master")
     assert (
         config.get_url_for_file_path("docker/README.md")
         == "https://github.com/datahub-project/datahub/blob/master/docker/README.md"
@@ -26,7 +25,7 @@ def test_base_url_guessing():
     assert config.repo_ssh_locator == "git@github.com:datahub-project/datahub.git"
 
     # GitLab repo (notice the trailing slash).
-    config_ref = GitHubReference(
+    config_ref = GitReference(
         repo="https://gitlab.com/gitlab-tests/sample-project/", branch="master"
     )
     assert (
@@ -35,7 +34,7 @@ def test_base_url_guessing():
     )
 
     # Three-tier GitLab repo.
-    config = GitHubInfo(
+    config = GitInfo(
         repo="https://gitlab.com/gitlab-com/gl-infra/reliability", branch="master"
     )
     assert (
@@ -47,20 +46,21 @@ def test_base_url_guessing():
     )
 
     # Overrides.
-    config = GitHubInfo(
+    config = GitInfo(
         repo="https://gitea.com/gitea/tea",
         branch="main",
         url_template="https://gitea.com/gitea/tea/src/branch/{branch}/{file_path}",
         repo_ssh_locator="https://gitea.com/gitea/tea.git",
     )
-    config.get_url_for_file_path(
-        "cmd/admin.go"
-    ) == "https://gitea.com/gitea/tea/src/branch/main/cmd/admin.go"
-    config.repo_ssh_locator == "https://gitea.com/gitea/tea.git"
+    assert (
+        config.get_url_for_file_path("cmd/admin.go")
+        == "https://gitea.com/gitea/tea/src/branch/main/cmd/admin.go"
+    )
+    assert config.repo_ssh_locator == "https://gitea.com/gitea/tea.git"
 
     # Deprecated: base_url.
     with pytest.warns(ConfigurationWarning, match="base_url is deprecated"):
-        config = GitHubInfo.parse_obj(
+        config = GitInfo.parse_obj(
             dict(
                 repo="https://github.com/datahub-project/datahub",
                 branch="master",
@@ -70,16 +70,27 @@ def test_base_url_guessing():
 
 
 def test_github_branch():
-    config = GitHubInfo(
+    config = GitInfo(
         repo="owner/repo",
     )
     assert config.branch_for_clone is None
 
-    config = GitHubInfo(
+    config = GitInfo(
         repo="owner/repo",
         branch="main",
     )
     assert config.branch_for_clone == "main"
+
+
+def test_sanitize_repo_url():
+    import datahub.ingestion.source.git.git_import
+
+    assert (
+        doctest.testmod(
+            datahub.ingestion.source.git.git_import, raise_on_error=True
+        ).attempted
+        == 3
+    )
 
 
 def test_git_clone_public(tmp_path):

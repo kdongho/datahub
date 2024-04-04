@@ -1,6 +1,6 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Generic, List, Optional, TypeVar
+from typing import Optional
 
 from pydantic.fields import Field
 
@@ -14,7 +14,7 @@ from datahub.ingestion.api.decorators import (
     support_status,
 )
 from datahub.ingestion.source.sql.sql_common import SQLAlchemySource
-from datahub.ingestion.source.sql.sql_config import SQLAlchemyConfig
+from datahub.ingestion.source.sql.sql_config import SQLCommonConfig
 
 
 @dataclass
@@ -26,34 +26,31 @@ class BaseColumn:
     comment: Optional[str]
 
 
-SqlTableColumn = TypeVar("SqlTableColumn", bound="BaseColumn")
-
-
 @dataclass
-class BaseTable(Generic[SqlTableColumn]):
-    name: str
-    comment: Optional[str]
-    created: datetime
-    last_altered: Optional[datetime]
-    size_in_bytes: Optional[int]
-    rows_count: Optional[int]
-    columns: List[SqlTableColumn] = field(default_factory=list)
-    ddl: Optional[str] = None
-
-
-@dataclass
-class BaseView(Generic[SqlTableColumn]):
+class BaseTable:
     name: str
     comment: Optional[str]
     created: Optional[datetime]
     last_altered: Optional[datetime]
-    view_definition: str
+    size_in_bytes: Optional[int]
+    rows_count: Optional[int]
+    column_count: Optional[int] = None
+    ddl: Optional[str] = None
+
+
+@dataclass
+class BaseView:
+    name: str
+    comment: Optional[str]
+    created: Optional[datetime]
+    last_altered: Optional[datetime]
+    view_definition: Optional[str]
     size_in_bytes: Optional[int] = None
     rows_count: Optional[int] = None
-    columns: List[SqlTableColumn] = field(default_factory=list)
+    column_count: Optional[int] = None
 
 
-class SQLAlchemyGenericConfig(SQLAlchemyConfig):
+class SQLAlchemyGenericConfig(SQLCommonConfig):
     platform: str = Field(
         description="Name of platform being ingested, used in constructing URNs."
     )
@@ -65,9 +62,9 @@ class SQLAlchemyGenericConfig(SQLAlchemyConfig):
         return self.connect_uri
 
 
-@platform_name("Other SQLAlchemy databases", id="sqlalchemy")
+@platform_name("SQLAlchemy", id="sqlalchemy")
 @config_class(SQLAlchemyGenericConfig)
-@support_status(SupportStatus.CERTIFIED)
+@support_status(SupportStatus.INCUBATING)
 @capability(SourceCapability.DOMAINS, "Supported via the `domain` config field")
 @capability(SourceCapability.DATA_PROFILING, "Optionally enabled via configuration")
 class SQLAlchemyGenericSource(SQLAlchemySource):

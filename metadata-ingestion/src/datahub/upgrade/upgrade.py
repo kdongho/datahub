@@ -1,13 +1,11 @@
 import asyncio
 import contextlib
-import functools
 import logging
 import sys
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Any, Callable, Optional, Tuple, TypeVar
 
-import aiohttp
 import humanfriendly
 from packaging.version import Version
 from pydantic import BaseModel
@@ -25,18 +23,18 @@ T = TypeVar("T")
 
 class VersionStats(BaseModel, arbitrary_types_allowed=True):
     version: Version
-    release_date: Optional[datetime]
+    release_date: Optional[datetime] = None
 
 
 class ServerVersionStats(BaseModel):
     current: VersionStats
-    latest: Optional[VersionStats]
-    current_server_type: Optional[str]
+    latest: Optional[VersionStats] = None
+    current_server_type: Optional[str] = None
 
 
 class ClientVersionStats(BaseModel):
     current: VersionStats
-    latest: Optional[VersionStats]
+    latest: Optional[VersionStats] = None
 
 
 class DataHubVersionStats(BaseModel):
@@ -45,6 +43,8 @@ class DataHubVersionStats(BaseModel):
 
 
 async def get_client_version_stats():
+    import aiohttp
+
     current_version_string = __version__
     current_version = Version(current_version_string)
     client_version_stats: ClientVersionStats = ClientVersionStats(
@@ -88,6 +88,8 @@ async def get_client_version_stats():
 
 
 async def get_github_stats():
+    import aiohttp
+
     async with aiohttp.ClientSession(
         headers={"Accept": "application/vnd.github.v3+json"}
     ) as session:
@@ -100,6 +102,8 @@ async def get_github_stats():
 
 
 async def get_server_config(gms_url: str, token: str) -> dict:
+    import aiohttp
+
     async with aiohttp.ClientSession(
         headers={
             "X-RestLi-Protocol-Version": "2.0.0",
@@ -116,6 +120,8 @@ async def get_server_config(gms_url: str, token: str) -> dict:
 async def get_server_version_stats(
     server: Optional[DataHubGraph] = None,
 ) -> Tuple[Optional[str], Optional[Version], Optional[datetime]]:
+    import aiohttp
+
     server_config = None
     if not server:
         try:
@@ -133,10 +139,12 @@ async def get_server_version_stats(
     current_server_release_date = None
     if server_config:
         server_version_string = (
-            server_config.get("versions", {}).get("linkedin/datahub", {}).get("version")
+            server_config.get("versions", {})
+            .get("acryldata/datahub", {})
+            .get("version")
         )
         commit_hash = (
-            server_config.get("versions", {}).get("linkedin/datahub", {}).get("commit")
+            server_config.get("versions", {}).get("acryldata/datahub", {}).get("commit")
         )
         server_type = server_config.get("datahub", {}).get("serverType", "unknown")
         if server_type == "quickstart" and commit_hash:
@@ -223,11 +231,11 @@ def valid_client_version(version: Version) -> bool:
 
 
 def valid_server_version(version: Version) -> bool:
-    """Only version strings like 0.8.x or 0.9.x are valid. 0.1.x is not"""
+    """Only version strings like 0.8.x, 0.9.x or 0.10.x are valid. 0.1.x is not"""
     if version.is_prerelease or version.is_postrelease or version.is_devrelease:
         return False
 
-    if version.major == 0 and version.minor in [8, 9]:
+    if version.major == 0 and version.minor in [8, 9, 10]:
         return True
 
     return False
@@ -235,7 +243,7 @@ def valid_server_version(version: Version) -> bool:
 
 def is_client_server_compatible(client: VersionStats, server: VersionStats) -> int:
     """
-    -ve implies client is behind server
+    -ve implies server is behind client
     0 implies client and server are aligned
     +ve implies server is ahead of client
     """
@@ -244,7 +252,12 @@ def is_client_server_compatible(client: VersionStats, server: VersionStats) -> i
     ):
         # we cannot evaluate compatibility, choose True as default
         return 0
-    return server.version.micro - client.version.micro
+    if server.version.major != client.version.major:
+        return server.version.major - client.version.major
+    elif server.version.minor != client.version.minor:
+        return server.version.minor - client.version.minor
+    else:
+        return server.version.micro - client.version.micro
 
 
 def maybe_print_upgrade_message(  # noqa: C901
@@ -362,17 +375,14 @@ def check_upgrade(func: Callable[..., T]) -> Callable[..., T]:
     @wraps(func)
     def async_wrapper(*args: Any, **kwargs: Any) -> Any:
         async def run_inner_func():
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(
-                None, functools.partial(func, *args, **kwargs)
-            )
+            return func(*args, **kwargs)
 
         async def run_func_check_upgrade():
             version_stats_future = asyncio.ensure_future(retrieve_version_stats())
-            the_one_future = asyncio.ensure_future(run_inner_func())
-            ret = await the_one_future
+            main_func_future = asyncio.ensure_future(run_inner_func())
+            ret = await main_func_future
 
-            # the one future has returned
+            # the main future has returned
             # we check the other futures quickly
             try:
                 version_stats = await asyncio.wait_for(version_stats_future, 0.5)

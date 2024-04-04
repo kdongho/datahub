@@ -37,6 +37,7 @@ query getMe {
             generatePersonalAccessTokens
             manageIngestion
             manageSecrets
+            manageTokens
             manageDomains
             manageTests
             manageGlossaries
@@ -45,6 +46,8 @@ query getMe {
             createDomains
             createTags
             manageGlobalViews
+            manageOwnershipTypes
+            manageGlobalAnnouncements
         }
     }
 }

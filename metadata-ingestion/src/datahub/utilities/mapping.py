@@ -1,18 +1,66 @@
+import contextlib
 import logging
+import operator
 import re
-from typing import Any, Dict, List, Match, Optional, Union
+import time
+from functools import reduce
+from typing import Any, Dict, List, Mapping, Match, Optional, Union, cast
 
 from datahub.emitter import mce_builder
 from datahub.emitter.mce_builder import OwnerType
 from datahub.metadata.schema_classes import (
+    AuditStampClass,
+    InstitutionalMemoryClass,
+    InstitutionalMemoryMetadataClass,
     OwnerClass,
     OwnershipClass,
     OwnershipSourceClass,
     OwnershipTypeClass,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _get_best_match(the_match: Match, group_name: str) -> str:
+    with contextlib.suppress(IndexError):
+        return the_match.group(group_name)
+
+    with contextlib.suppress(IndexError):
+        return the_match.group(1)
+
+    return the_match.group(0)
+
+
+def _make_owner_category_list(
+    owner_type: OwnerType,
+    owner_category: Any,
+    owner_category_urn: Optional[str],
+    owner_ids: List[str],
+) -> List[Dict]:
+
+    return [
+        {
+            "urn": mce_builder.make_owner_urn(owner_id, owner_type),
+            "category": owner_category,
+            "categoryUrn": owner_category_urn,
+        }
+        for owner_id in owner_ids
+    ]
+
+
+_match_regexp = re.compile(r"{{\s*\$match\s*}}", flags=re.MULTILINE)
+
+
+def _insert_match_value(original_value: str, match_value: str) -> str:
+    """
+    If the original value is something like "foo{{ $match }}bar", then we insert the match value
+    e.g. "foo<match_value>bar". Otherwise, it will leave the original value unchanged.
+    """
+    return _match_regexp.sub(match_value, original_value)
+
 
 class Constants:
+    ADD_DOC_LINK_OPERATION = "add_doc_link"
     ADD_TAG_OPERATION = "add_tag"
     ADD_TERM_OPERATION = "add_term"
     ADD_TERMS_OPERATION = "add_terms"
@@ -21,6 +69,8 @@ class Constants:
     OPERATION_CONFIG = "config"
     TAG = "tag"
     TERM = "term"
+    DOC_LINK = "link"
+    DOC_DESCRIPTION = "description"
     OWNER_TYPE = "owner_type"
     OWNER_CATEGORY = "owner_category"
     MATCH = "match"
@@ -28,6 +78,8 @@ class Constants:
     GROUP_OWNER = "group"
     OPERAND_DATATYPE_SUPPORTED = [int, bool, str, float]
     TAG_PARTITION_KEY = "PARTITION_KEY"
+    TAG_DIST_KEY = "DIST_KEY"
+    TAG_SORT_KEY = "SORT_KEY"
     SEPARATOR = "separator"
 
 
@@ -60,7 +112,6 @@ class OperationProcessor:
     """
 
     operation_defs: Dict[str, Dict] = {}
-    logger = logging.getLogger(__name__)
     tag_prefix: str = ""
 
     def __init__(
@@ -69,13 +120,15 @@ class OperationProcessor:
         tag_prefix: str = "",
         owner_source_type: Optional[str] = None,
         strip_owner_email_id: bool = False,
+        match_nested_props: bool = False,
     ):
         self.operation_defs = operation_defs
         self.tag_prefix = tag_prefix
         self.strip_owner_email_id = strip_owner_email_id
         self.owner_source_type = owner_source_type
+        self.match_nested_props = match_nested_props
 
-    def process(self, raw_props: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, raw_props: Mapping[str, Any]) -> Dict[str, Any]:
         # Defining the following local variables -
         # operations_map - the final resulting map when operations are processed.
         # Against each operation the values to be applied are stored.
@@ -96,21 +149,43 @@ class OperationProcessor:
                 )
                 if not operation_type or not operation_config:
                     continue
+                raw_props_value = raw_props.get(operation_key)
+                if not raw_props_value and self.match_nested_props:
+                    try:
+                        raw_props_value = reduce(
+                            operator.getitem, operation_key.split("."), raw_props
+                        )
+                    except KeyError:
+                        pass
+
                 maybe_match = self.get_match(
                     self.operation_defs[operation_key][Constants.MATCH],
-                    raw_props.get(operation_key),
+                    raw_props_value,
                 )
                 if maybe_match is not None:
                     operation = self.get_operation_value(
                         operation_key, operation_type, operation_config, maybe_match
                     )
+
                     if operation_type == Constants.ADD_TERMS_OPERATION:
                         # add_terms operation is a special case where the operation value is a list of terms.
                         # We want to aggregate these values with the add_term operation.
                         operation_type = Constants.ADD_TERM_OPERATION
 
                     if operation:
-                        if isinstance(operation, (str, list)):
+                        if (
+                            isinstance(operation, list)
+                            and operation_type == Constants.ADD_OWNER_OPERATION
+                        ):
+                            operation_value_list = operations_map.get(
+                                operation_type, list()
+                            )
+                            cast(List, operation_value_list).extend(
+                                operation
+                            )  # cast to silent the lint
+                            operations_map[operation_type] = operation_value_list
+
+                        elif isinstance(operation, (str, list)):
                             operations_value_set = operations_map.get(
                                 operation_type, set()
                             )
@@ -125,27 +200,31 @@ class OperationProcessor:
                             )
                             operations_value_list.append(operation)  # type: ignore
                             operations_map[operation_type] = operations_value_list
-
             aspect_map = self.convert_to_aspects(operations_map)
         except Exception as e:
-            self.logger.error("Error while processing operation defs over raw_props", e)
+            logger.error(f"Error while processing operation defs over raw_props: {e}")
         return aspect_map
 
     def convert_to_aspects(
         self, operation_map: Dict[str, Union[set, list]]
     ) -> Dict[str, Any]:
         aspect_map: Dict[str, Any] = {}
+
         if Constants.ADD_TAG_OPERATION in operation_map:
             tag_aspect = mce_builder.make_global_tag_aspect_with_tag_list(
                 sorted(operation_map[Constants.ADD_TAG_OPERATION])
             )
+
             aspect_map[Constants.ADD_TAG_OPERATION] = tag_aspect
+
         if Constants.ADD_OWNER_OPERATION in operation_map:
+
             owner_aspect = OwnershipClass(
                 owners=[
                     OwnerClass(
                         owner=x.get("urn"),
                         type=x.get("category"),
+                        typeUrn=x.get("categoryUrn"),
                         source=OwnershipSourceClass(type=self.owner_source_type)
                         if self.owner_source_type
                         else None,
@@ -156,12 +235,59 @@ class OperationProcessor:
                     )
                 ]
             )
+
             aspect_map[Constants.ADD_OWNER_OPERATION] = owner_aspect
+
         if Constants.ADD_TERM_OPERATION in operation_map:
             term_aspect = mce_builder.make_glossary_terms_aspect_from_urn_list(
                 sorted(operation_map[Constants.ADD_TERM_OPERATION])
             )
             aspect_map[Constants.ADD_TERM_OPERATION] = term_aspect
+
+        if Constants.ADD_DOC_LINK_OPERATION in operation_map:
+            try:
+                if len(
+                    operation_map[Constants.ADD_DOC_LINK_OPERATION]
+                ) == 1 and isinstance(
+                    operation_map[Constants.ADD_DOC_LINK_OPERATION], list
+                ):
+                    docs_dict = cast(
+                        List[Dict], operation_map[Constants.ADD_DOC_LINK_OPERATION]
+                    )[0]
+                    if "description" not in docs_dict or "link" not in docs_dict:
+                        raise Exception(
+                            "Documentation_link meta_mapping config needs a description key and a link key"
+                        )
+
+                    now = int(time.time() * 1000)  # milliseconds since epoch
+                    institutional_memory_element = InstitutionalMemoryMetadataClass(
+                        url=docs_dict["link"],
+                        description=docs_dict["description"],
+                        createStamp=AuditStampClass(
+                            time=now, actor="urn:li:corpuser:ingestion"
+                        ),
+                    )
+
+                    # create a new institutional memory aspect
+                    institutional_memory_aspect = InstitutionalMemoryClass(
+                        elements=[institutional_memory_element]
+                    )
+
+                    aspect_map[
+                        Constants.ADD_DOC_LINK_OPERATION
+                    ] = institutional_memory_aspect
+                else:
+                    raise Exception(
+                        f"Expected 1 item of type list for the documentation_link meta_mapping config,"
+                        f" received type of {type(operation_map[Constants.ADD_DOC_LINK_OPERATION])}"
+                        f", and size of {len(operation_map[Constants.ADD_DOC_LINK_OPERATION])}."
+                    )
+
+            except Exception as e:
+                logger.error(
+                    f"Error while constructing aspect for documentation link and description : {e}"
+                )
+
         return aspect_map
 
     def get_operation_value(
@@ -170,31 +296,13 @@ class OperationProcessor:
         operation_type: str,
         operation_config: Dict,
         match: Match,
-    ) -> Optional[Union[str, Dict, List[str]]]:
-        def _get_best_match(the_match: Match, group_name: str) -> str:
-            result = the_match.group(0)
-            try:
-                result = the_match.group(group_name)
-                return result
-            except IndexError:
-                pass
-            try:
-                result = the_match.group(1)
-                return result
-            except IndexError:
-                pass
-            return result
-
-        match_regexp = r"{{\s*\$match\s*}}"
-
+    ) -> Optional[Union[str, Dict, List[str], List[Dict]]]:
         if (
             operation_type == Constants.ADD_TAG_OPERATION
             and operation_config[Constants.TAG]
         ):
             tag = operation_config[Constants.TAG]
-            tag_id = _get_best_match(match, "tag")
-            if isinstance(tag_id, str):
-                tag = re.sub(match_regexp, tag_id, tag, 0, re.MULTILINE)
+            tag = _insert_match_value(tag, _get_best_match(match, "tag"))
 
             if self.tag_prefix:
                 tag = self.tag_prefix + tag
@@ -204,32 +312,56 @@ class OperationProcessor:
             and operation_config[Constants.OWNER_TYPE]
         ):
             owner_id = _get_best_match(match, "owner")
+
+            owner_ids: List[str] = [_id.strip() for _id in owner_id.split(",")]
+
             owner_category = (
                 operation_config.get(Constants.OWNER_CATEGORY)
                 or OwnershipTypeClass.DATAOWNER
             )
-            owner_category = owner_category.upper()
+            owner_category_urn: Optional[str] = None
+            if owner_category.startswith("urn:li:"):
+                owner_category_urn = owner_category
+                owner_category = OwnershipTypeClass.DATAOWNER
+            else:
+                owner_category = owner_category.upper()
+
             if self.strip_owner_email_id:
-                owner_id = self.sanitize_owner_ids(owner_id)
-            if operation_config[Constants.OWNER_TYPE] == Constants.USER_OWNER:
-                return {
-                    "urn": mce_builder.make_owner_urn(owner_id, OwnerType.USER),
-                    "category": owner_category,
-                }
-            elif operation_config[Constants.OWNER_TYPE] == Constants.GROUP_OWNER:
-                return {
-                    "urn": mce_builder.make_owner_urn(owner_id, OwnerType.GROUP),
-                    "category": owner_category,
-                }
+                owner_ids = [
+                    self.sanitize_owner_ids(owner_id) for owner_id in owner_ids
+                ]
+
+            owner_type_mapping: Dict[str, OwnerType] = {
+                Constants.USER_OWNER: OwnerType.USER,
+                Constants.GROUP_OWNER: OwnerType.GROUP,
+            }
+            if operation_config[Constants.OWNER_TYPE] in owner_type_mapping:
+                return _make_owner_category_list(
+                    owner_ids=owner_ids,
+                    owner_category=owner_category,
+                    owner_category_urn=owner_category_urn,
+                    owner_type=owner_type_mapping[
+                        operation_config[Constants.OWNER_TYPE]
+                    ],
+                )
+
         elif (
             operation_type == Constants.ADD_TERM_OPERATION
             and operation_config[Constants.TERM]
         ):
             term = operation_config[Constants.TERM]
-            captured_term_id = _get_best_match(match, "term")
-            if isinstance(captured_term_id, str):
-                term = re.sub(match_regexp, captured_term_id, term, 0, re.MULTILINE)
+            term = _insert_match_value(term, _get_best_match(match, "term"))
             return mce_builder.make_term_urn(term)
+        elif (
+            operation_type == Constants.ADD_DOC_LINK_OPERATION
+            and operation_config[Constants.DOC_LINK]
+            and operation_config[Constants.DOC_DESCRIPTION]
+        ):
+            link = operation_config[Constants.DOC_LINK]
+            link = _insert_match_value(link, _get_best_match(match, "link"))
+            description = operation_config[Constants.DOC_DESCRIPTION]
+            return {"link": link, "description": description}
+
         elif operation_type == Constants.ADD_TERMS_OPERATION:
             separator = operation_config.get(Constants.SEPARATOR, ",")
             captured_terms = match.group(0)
@@ -247,11 +379,11 @@ class OperationProcessor:
 
     def get_match(self, match_clause: Any, raw_props_value: Any) -> Optional[Match]:
         # function to check if a match clause is satisfied to a value.
-        if type(raw_props_value) not in Constants.OPERAND_DATATYPE_SUPPORTED or type(
-            raw_props_value
-        ) != type(match_clause):
+        if not any(
+            isinstance(raw_props_value, t) for t in Constants.OPERAND_DATATYPE_SUPPORTED
+        ) or not isinstance(raw_props_value, type(match_clause)):
             return None
-        elif type(raw_props_value) == str:
+        elif isinstance(raw_props_value, str):
             return re.match(match_clause, raw_props_value)
         else:
             return re.match(str(match_clause), str(raw_props_value))

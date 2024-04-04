@@ -4,6 +4,49 @@ from typing import Any, Dict
 
 from botocore.response import StreamingBody
 
+resource_link_database = {
+    "Name": "test-database",
+    "CreateTime": datetime.datetime(2021, 6, 9, 14, 14, 19),
+    "CreateTableDefaultPermissions": [],
+    "TargetDatabase": {"CatalogId": "432143214321", "DatabaseName": "test-database"},
+    "CatalogId": "123412341234",
+}
+get_databases_response_with_resource_link = {"DatabaseList": [resource_link_database]}
+
+target_database_tables = [
+    {
+        "Name": "transactions",
+        "DatabaseName": "test-database",
+        "CreateTime": datetime.datetime(2021, 6, 9, 14, 14, 19),
+        "UpdateTime": datetime.datetime(2021, 6, 9, 14, 14, 19),
+        "Retention": 0,
+        "StorageDescriptor": {
+            "Columns": [
+                {"Name": "id", "Type": "bigint", "Comment": ""},
+                {"Name": "name", "Type": "string", "Comment": ""},
+            ],
+            "Location": "s3://test-db-432143214321/transactions",
+            "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+            "Compressed": False,
+            "NumberOfBuckets": 0,
+            "SerdeInfo": {
+                "Parameters": {"serialization.format": "1"},
+                "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
+            },
+            "SortColumns": [],
+            "StoredAsSubDirectories": False,
+        },
+        "TableType": "EXTERNAL_TABLE",
+        "Parameters": {"classification": "parquet"},
+        "CreatedBy": "arn:aws:sts::432143214321:assumed-role/AWSGlueServiceRole/GlueJobRunnerSession",
+        "IsRegisteredWithLakeFormation": False,
+        "CatalogId": "432143214321",
+        "VersionId": "504",
+    }
+]
+get_tables_response_for_target_database = {"TableList": target_database_tables}
+
 get_databases_response = {
     "DatabaseList": [
         {
@@ -49,7 +92,7 @@ tables_1 = [
         "Retention": 0,
         "StorageDescriptor": {
             "Columns": [
-                {"Name": "yr", "Type": "int"},
+                {"Name": "yr", "Type": "int", "Comment": "test comment"},
                 {"Name": "flightdate", "Type": "string"},
                 {"Name": "uniquecarrier", "Type": "string"},
                 {"Name": "airlineid", "Type": "int"},
@@ -86,7 +129,9 @@ tables_1 = [
             },
             "StoredAsSubDirectories": False,
         },
-        "PartitionKeys": [{"Name": "year", "Type": "string"}],
+        "PartitionKeys": [
+            {"Name": "year", "Type": "string", "Comment": "partition test comment"}
+        ],
         "TableType": "EXTERNAL_TABLE",
         "Parameters": {
             "CrawlerSchemaDeserializerVersion": "1.0",
