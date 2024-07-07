@@ -1,5 +1,101 @@
 [
 {
+    "entityType": "container",
+    "entityUrn": "urn:li:container:691314a7b63628684d62a14861d057a8",
+    "changeType": "UPSERT",
+    "aspectName": "containerProperties",
+    "aspect": {
+        "json": {
+            "customProperties": {
+                "platform": "looker",
+                "env": "PROD",
+                "folder_id": "shared-folder-id"
+            },
+            "name": "Shared"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:691314a7b63628684d62a14861d057a8",
+    "changeType": "UPSERT",
+    "aspectName": "status",
+    "aspect": {
+        "json": {
+            "removed": false
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:691314a7b63628684d62a14861d057a8",
+    "changeType": "UPSERT",
+    "aspectName": "dataPlatformInstance",
+    "aspect": {
+        "json": {
+            "platform": "urn:li:dataPlatform:looker"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:691314a7b63628684d62a14861d057a8",
+    "changeType": "UPSERT",
+    "aspectName": "subTypes",
+    "aspect": {
+        "json": {
+            "typeNames": [
+                "Folder"
+            ]
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:691314a7b63628684d62a14861d057a8",
+    "changeType": "UPSERT",
+    "aspectName": "browsePathsV2",
+    "aspect": {
+        "json": {
+            "path": [
+                {
+                    "id": "Folders"
+                }
+            ]
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
     "proposedSnapshot": {
         "com.linkedin.pegasus2avro.metadata.snapshot.ChartSnapshot": {
             "urn": "urn:li:chart:(looker,dashboard_elements.2)",
@@ -47,7 +143,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -65,7 +162,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -80,7 +178,8 @@
                     "id": "Folders"
                 },
                 {
-                    "id": "Shared"
+                    "id": "urn:li:container:691314a7b63628684d62a14861d057a8",
+                    "urn": "urn:li:container:691314a7b63628684d62a14861d057a8"
                 },
                 {
                     "id": "foo"
@@ -91,7 +190,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -139,7 +239,25 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "dashboard",
+    "entityUrn": "urn:li:dashboard:(looker,dashboards.1)",
+    "changeType": "UPSERT",
+    "aspectName": "container",
+    "aspect": {
+        "json": {
+            "container": "urn:li:container:691314a7b63628684d62a14861d057a8"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -155,7 +273,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -170,7 +289,8 @@
                     "id": "Folders"
                 },
                 {
-                    "id": "Shared"
+                    "id": "urn:li:container:691314a7b63628684d62a14861d057a8",
+                    "urn": "urn:li:container:691314a7b63628684d62a14861d057a8"
                 }
             ]
         }
@@ -178,7 +298,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -203,9 +324,6 @@
                         },
                         "nativeDataType": "string",
                         "recursive": false,
-                        "globalTags": {
-                            "tags": []
-                        },
                         "isPartOfKey": false
                     }
                 },
@@ -239,7 +357,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -264,9 +383,6 @@
                         },
                         "nativeDataType": "string",
                         "recursive": false,
-                        "globalTags": {
-                            "tags": []
-                        },
                         "isPartOfKey": false
                     }
                 },
@@ -300,7 +416,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -351,7 +468,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -369,7 +487,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -385,7 +504,25 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "chart",
+    "entityUrn": "urn:li:chart:(looker,dashboard_elements.looks_1)",
+    "changeType": "UPSERT",
+    "aspectName": "container",
+    "aspect": {
+        "json": {
+            "container": "urn:li:container:691314a7b63628684d62a14861d057a8"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -401,7 +538,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -416,7 +554,8 @@
                     "id": "Folders"
                 },
                 {
-                    "id": "Shared"
+                    "id": "urn:li:container:691314a7b63628684d62a14861d057a8",
+                    "urn": "urn:li:container:691314a7b63628684d62a14861d057a8"
                 }
             ]
         }
@@ -424,7 +563,200 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:59a5aa45397364e6882e793f1bc77b42",
+    "changeType": "UPSERT",
+    "aspectName": "containerProperties",
+    "aspect": {
+        "json": {
+            "customProperties": {
+                "platform": "looker",
+                "env": "PROD",
+                "model_name": "data"
+            },
+            "name": "data"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:59a5aa45397364e6882e793f1bc77b42",
+    "changeType": "UPSERT",
+    "aspectName": "status",
+    "aspect": {
+        "json": {
+            "removed": false
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:59a5aa45397364e6882e793f1bc77b42",
+    "changeType": "UPSERT",
+    "aspectName": "dataPlatformInstance",
+    "aspect": {
+        "json": {
+            "platform": "urn:li:dataPlatform:looker"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:59a5aa45397364e6882e793f1bc77b42",
+    "changeType": "UPSERT",
+    "aspectName": "subTypes",
+    "aspect": {
+        "json": {
+            "typeNames": [
+                "LookML Model"
+            ]
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:59a5aa45397364e6882e793f1bc77b42",
+    "changeType": "UPSERT",
+    "aspectName": "browsePathsV2",
+    "aspect": {
+        "json": {
+            "path": [
+                {
+                    "id": "Explore"
+                }
+            ]
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:d38ab60586a6e39b4cf63f14946969c5",
+    "changeType": "UPSERT",
+    "aspectName": "containerProperties",
+    "aspect": {
+        "json": {
+            "customProperties": {
+                "platform": "looker",
+                "env": "PROD",
+                "model_name": "sales_model"
+            },
+            "name": "sales_model"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:d38ab60586a6e39b4cf63f14946969c5",
+    "changeType": "UPSERT",
+    "aspectName": "status",
+    "aspect": {
+        "json": {
+            "removed": false
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:d38ab60586a6e39b4cf63f14946969c5",
+    "changeType": "UPSERT",
+    "aspectName": "dataPlatformInstance",
+    "aspect": {
+        "json": {
+            "platform": "urn:li:dataPlatform:looker"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:d38ab60586a6e39b4cf63f14946969c5",
+    "changeType": "UPSERT",
+    "aspectName": "subTypes",
+    "aspect": {
+        "json": {
+            "typeNames": [
+                "LookML Model"
+            ]
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "container",
+    "entityUrn": "urn:li:container:d38ab60586a6e39b4cf63f14946969c5",
+    "changeType": "UPSERT",
+    "aspectName": "browsePathsV2",
+    "aspect": {
+        "json": {
+            "path": [
+                {
+                    "id": "Explore"
+                }
+            ]
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -435,7 +767,7 @@
                 {
                     "com.linkedin.pegasus2avro.common.BrowsePaths": {
                         "paths": [
-                            "/Explore/lkml_samples/data"
+                            "/Explore/data"
                         ]
                     }
                 },
@@ -521,7 +853,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -539,7 +872,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -555,7 +889,25 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "dataset",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:looker,data.explore.my_view,PROD)",
+    "changeType": "UPSERT",
+    "aspectName": "container",
+    "aspect": {
+        "json": {
+            "container": "urn:li:container:59a5aa45397364e6882e793f1bc77b42"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -570,10 +922,8 @@
                     "id": "Explore"
                 },
                 {
-                    "id": "lkml_samples"
-                },
-                {
-                    "id": "data"
+                    "id": "urn:li:container:59a5aa45397364e6882e793f1bc77b42",
+                    "urn": "urn:li:container:59a5aa45397364e6882e793f1bc77b42"
                 }
             ]
         }
@@ -581,7 +931,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -592,7 +943,7 @@
                 {
                     "com.linkedin.pegasus2avro.common.BrowsePaths": {
                         "paths": [
-                            "/Explore/lkml_samples/sales_model"
+                            "/Explore/sales_model"
                         ]
                     }
                 },
@@ -678,7 +1029,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -696,7 +1048,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -712,7 +1065,25 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
+    }
+},
+{
+    "entityType": "dataset",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:looker,sales_model.explore.sales_explore,PROD)",
+    "changeType": "UPSERT",
+    "aspectName": "container",
+    "aspect": {
+        "json": {
+            "container": "urn:li:container:d38ab60586a6e39b4cf63f14946969c5"
+        }
+    },
+    "systemMetadata": {
+        "lastObserved": 1586847600000,
+        "runId": "looker-test",
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -727,10 +1098,8 @@
                     "id": "Explore"
                 },
                 {
-                    "id": "lkml_samples"
-                },
-                {
-                    "id": "sales_model"
+                    "id": "urn:li:container:d38ab60586a6e39b4cf63f14946969c5",
+                    "urn": "urn:li:container:d38ab60586a6e39b4cf63f14946969c5"
                 }
             ]
         }
@@ -738,7 +1107,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -758,7 +1128,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -778,7 +1149,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -798,7 +1170,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -814,7 +1187,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -830,7 +1204,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 },
 {
@@ -846,7 +1221,8 @@
     "systemMetadata": {
         "lastObserved": 1586847600000,
         "runId": "looker-test",
-        "lastRunId": "no-run-id-provided"
+        "lastRunId": "no-run-id-provided",
+        "pipelineName": "execution-1"
     }
 }
 ]
